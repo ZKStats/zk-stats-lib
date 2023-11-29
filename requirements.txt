@@ -1,0 +1,9 @@
+ezkl==5.0.8
+torch
+requests
+scipy
+numpy
+matplotlib
+statistics
+onnx
+
