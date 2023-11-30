@@ -154,6 +154,8 @@ cython_debug/
 
 # generated folder
 **/generated/
+**/prover/
+**/shared/
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
