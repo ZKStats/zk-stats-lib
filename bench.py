@@ -214,15 +214,16 @@ def bench_one(data_path_array, model_func, gen_param_func, data_name, scale,mode
     export_onnx(model_func(gen_param_func(data_tensor_array)), data_tensor_array, prover_model_path)
     # gen + calibrate setting
     gen_settings(comb_data_path, prover_model_path, scale, mode, settings_path)
-
+    f_setting = open(settings_path, "r")
+    print("setting: ", f_setting.read())
     verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path, srs_path,vk_path, pk_path )
 
     gen_prf_time = prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path, srs_path)
 
     result= verifier_verify(proof_path, settings_path, vk_path, srs_path)
 
-    f_setting = open(settings_path, "r")
-    print("setting: ", f_setting.read())
+    # f_setting = open(settings_path, "r")
+    # print("setting: ", f_setting.read())
     print("gen prf time: ", gen_prf_time)
     print("Theory result: ", gen_param_func(data_tensor_array)[0])
     print("Our result: ", result)
@@ -293,6 +294,8 @@ def bench_all(data_path_nested_array, model_func, gen_param_func, scale):
         export_onnx(model_func(gen_param_func(data_tensor_array)), data_tensor_array, prover_model_path)
         # gen + calibrate setting
         gen_settings(comb_data_path, prover_model_path, [scale[dataset_index]], "resources", settings_path)
+        f_setting = open(settings_path, "r")
+        print("setting: ", f_setting.read())
 
         verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path, srs_path,vk_path, pk_path )
 
@@ -300,8 +303,8 @@ def bench_all(data_path_nested_array, model_func, gen_param_func, scale):
 
         result= verifier_verify(proof_path, settings_path, vk_path, srs_path)
 
-        f_setting = open(settings_path, "r")
-        print("setting: ", f_setting.read())
+        # f_setting = open(settings_path, "r")
+        # print("setting: ", f_setting.read())
         print("gen prf time: ", gen_prf_time)
         print("Theory result: ", gen_param_func(data_tensor_array)[0])
         print("Our result: ", result)
