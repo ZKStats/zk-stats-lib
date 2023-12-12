@@ -44,3 +44,6 @@ class MeanModel(NoDivisionModel):
         # some expression of tolerance to error in the inference
         # must have w first!
         return (torch.abs(torch.sum(X)-X.size()[1]*(self.w))<0.01*X.size()[1]*(self.w), self.w)
+
+
+# TODO: Copy the rest of models here

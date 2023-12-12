@@ -31,7 +31,7 @@ def load_model(module_path: str) -> Type[torch.nn.Module]:
 
 
 # Export model
-def export_onnx(model: torch.nn.Module, data_tensor_array, model_loc):
+def export_onnx(model, data_tensor_array, model_loc):
   circuit = model()
   # Try running `prepare()` if it exists
   try:
@@ -47,7 +47,6 @@ def export_onnx(model: torch.nn.Module, data_tensor_array, model_loc):
 
   # Flips the neural net into inference mode
   circuit.eval()
-  print("!@# circuit.eval=", circuit)
   input_names = []
   dynamic_axes = {}
 
@@ -122,7 +121,6 @@ def process_data(data_path_array, comb_data_path) -> list[Tensor]:
         data = np.array(
           json.loads(open(path, "r").read())["input_data"][0]
         )
-        print("!@# data=", data)
         data_tensor = torch.tensor(data)
         t = (1, len(data), 1)
         data_tensor_array.append(torch.reshape(data_tensor, t))
@@ -174,7 +172,6 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
 # ===================================================================================================
 # ===================================================================================================
 
-# we decide to not have comb_data_path as parameter since a bit redundant parameter.
 def prover_setup(
     data_path_array,
     comb_data_path,
