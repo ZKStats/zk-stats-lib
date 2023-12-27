@@ -71,13 +71,13 @@ def gen_settings(comb_data_path, onnx_filename, scale, mode, settings_filename):
 
 # Here prover can concurrently call this since all params are public to get pk. 
 # Here write as verifier function to emphasize that verifier must calculate its own vk to be sure
-def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path, srs_path,vk_path, pk_path ):
+def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path ):
   # compile circuit
   res = ezkl.compile_circuit(verifier_model_path, verifier_compiled_model_path, settings_path)
   assert res == True
 
   # srs path
-  res = ezkl.get_srs(srs_path, settings_path)
+  res = ezkl.get_srs(settings_path)
 
   # setupt vk, pk param for use..... prover can use same pk or can init their own!
 #   print("==== setting up ezkl ====")
@@ -85,8 +85,7 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
   res = ezkl.setup(
         verifier_compiled_model_path,
         vk_path,
-        pk_path,
-        srs_path)
+        pk_path)
   end_time = time.time()
   time_setup = end_time -start_time
 #   print(f"Time setup: {time_setup} seconds")
@@ -100,7 +99,7 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
 # ===================================================================================================  
 
 # return time gen proof
-def prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path, srs_path):
+def prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path):
   res = ezkl.compile_circuit(prover_model_path, prover_compiled_model_path, settings_path)
   assert res == True
   # now generate the witness file
@@ -122,7 +121,6 @@ def prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_com
         prover_compiled_model_path,
         pk_path,
         proof_path,
-        srs_path,
         "single",
     )
 
@@ -137,7 +135,7 @@ def prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_com
 # ===================================================================================================  
 
 # return result array
-def verifier_verify(proof_path, settings_path, vk_path, srs_path):
+def verifier_verify(proof_path, settings_path, vk_path):
   # enforce boolean statement to be true
   settings = json.load(open(settings_path))
   output_scale = settings['model_output_scales']
@@ -161,8 +159,7 @@ def verifier_verify(proof_path, settings_path, vk_path, srs_path):
   res = ezkl.verify(
         proof_path,
         settings_path,
-        vk_path,
-        srs_path,
+        vk_path
     )
 
   assert res == True
@@ -184,7 +181,6 @@ def bench_one(data_path_array, model_func, gen_param_func, data_name, scale,mode
     vk_path = os.path.join('shared/test.vk')
     proof_path = os.path.join('shared/test.pf')
     settings_path = os.path.join('shared/settings.json')
-    srs_path = os.path.join('shared/kzg.srs')
     witness_path = os.path.join('prover/witness.json')
 
     # this is private to prover since it contains actual data
@@ -216,11 +212,11 @@ def bench_one(data_path_array, model_func, gen_param_func, data_name, scale,mode
     gen_settings(comb_data_path, prover_model_path, scale, mode, settings_path)
     f_setting = open(settings_path, "r")
     print("setting: ", f_setting.read())
-    verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path, srs_path,vk_path, pk_path )
+    verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path )
 
-    gen_prf_time = prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path, srs_path)
+    gen_prf_time = prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path)
 
-    result= verifier_verify(proof_path, settings_path, vk_path, srs_path)
+    result= verifier_verify(proof_path, settings_path, vk_path)
 
     # f_setting = open(settings_path, "r")
     # print("setting: ", f_setting.read())
@@ -244,7 +240,6 @@ def bench_all(data_path_nested_array, model_func, gen_param_func, scale):
     vk_path = os.path.join('shared/test.vk')
     proof_path = os.path.join('shared/test.pf')
     settings_path = os.path.join('shared/settings.json')
-    srs_path = os.path.join('shared/kzg.srs')
     witness_path = os.path.join('prover/witness.json')
 
     # this is private to prover since it contains actual data
@@ -297,11 +292,11 @@ def bench_all(data_path_nested_array, model_func, gen_param_func, scale):
         f_setting = open(settings_path, "r")
         print("setting: ", f_setting.read())
 
-        verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path, srs_path,vk_path, pk_path )
+        verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path )
 
-        gen_prf_time = prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path, srs_path)
+        gen_prf_time = prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path)
 
-        result= verifier_verify(proof_path, settings_path, vk_path, srs_path)
+        result= verifier_verify(proof_path, settings_path, vk_path)
 
         # f_setting = open(settings_path, "r")
         # print("setting: ", f_setting.read())

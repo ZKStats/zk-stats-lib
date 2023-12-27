@@ -144,13 +144,13 @@ def prover_gen_settings(data_path_array, comb_data_path, prover_model,prover_mod
 
 # Here prover can concurrently call this since all params are public to get pk.
 # Here write as verifier function to emphasize that verifier must calculate its own vk to be sure
-def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path, srs_path,vk_path, pk_path ):
+def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path ):
   # compile circuit
   res = ezkl.compile_circuit(verifier_model_path, verifier_compiled_model_path, settings_path)
   assert res == True
 
   # srs path
-  res = ezkl.get_srs(srs_path, settings_path)
+  res = ezkl.get_srs(settings_path)
 
   # setup vk, pk param for use..... prover can use same pk or can init their own!
   print("==== setting up ezkl ====")
@@ -158,8 +158,7 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
   res = ezkl.setup(
         verifier_compiled_model_path,
         vk_path,
-        pk_path,
-        srs_path)
+        pk_path)
   end_time = time.time()
   time_setup = end_time -start_time
   print(f"Time setup: {time_setup} seconds")
@@ -181,7 +180,6 @@ def prover_setup(
     scale,
     mode,
     settings_path,
-    srs_path,
     vk_path,
     pk_path,
 ):
@@ -191,7 +189,7 @@ def prover_setup(
     export_onnx(prover_model, data_tensor_array, prover_model_path)
     # gen + calibrate setting
     gen_settings(comb_data_path, prover_model_path, scale, mode, settings_path)
-    verifier_setup(prover_model_path, prover_compiled_model_path, settings_path, srs_path, vk_path, pk_path)
+    verifier_setup(prover_model_path, prover_compiled_model_path, settings_path, vk_path, pk_path)
 
 
 def prover_gen_proof(
@@ -201,8 +199,7 @@ def prover_gen_proof(
     prover_compiled_model_path,
     settings_path,
     proof_path,
-    pk_path,
-    srs_path,
+    pk_path
 ):
     print("!@# compiled_model exists?", os.path.isfile(prover_compiled_model_path))
     res = ezkl.compile_circuit(prover_model_path, prover_compiled_model_path, settings_path)
@@ -227,7 +224,6 @@ def prover_gen_proof(
           prover_compiled_model_path,
           pk_path,
           proof_path,
-          srs_path,
           "single",
       )
 
@@ -240,7 +236,7 @@ def prover_gen_proof(
 # ===================================================================================================
 # ===================================================================================================
 
-def verifier_verify(proof_path, settings_path, vk_path, srs_path):
+def verifier_verify(proof_path, settings_path, vk_path):
   # enforce boolean statement to be true
   settings = json.load(open(settings_path))
   output_scale = settings['model_output_scales']
@@ -262,7 +258,6 @@ def verifier_verify(proof_path, settings_path, vk_path, srs_path):
         proof_path,
         settings_path,
         vk_path,
-        srs_path,
     )
 
   assert res == True
