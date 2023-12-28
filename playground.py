@@ -3,7 +3,8 @@
 import numpy as np
 
 # generate data for 1 col
-array = np.round(np.random.uniform(100,10000, 1000), 0)
+# array = np.floor(np.random.uniform(1,100, 50))
+array = np.round(np.random.normal(5000, 200,1000), 0)
 
 print(", ".join(map(str, array)))
 

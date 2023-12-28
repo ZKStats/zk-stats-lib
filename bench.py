@@ -199,6 +199,7 @@ def bench_one(data_path_array, model_func, gen_param_func, data_name, scale,mode
 
         # create dummy part, not need to save dummy data part
         dummy_data = np.round(np.random.uniform(1,10,len(data)),1)
+        # dummy_data = np.round(np.random.uniform(10,100,len(data)),0)*10
         dummy_data_tensor_array.append(torch.reshape(torch.tensor(dummy_data), (1, len(dummy_data),1 )))
     json.dump(dict(input_data = comb_data), open(comb_data_path, 'w' ))
 
