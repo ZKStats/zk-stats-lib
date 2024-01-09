@@ -6,7 +6,7 @@ authors = ["Jern Kunpittaya", "Kevin Chia"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-ezkl = "5.0.8"
+ezkl = "7.0.0"
 torch = "^2.1.1"
 requests = "^2.31.0"
 scipy = "^1.11.4"

@@ -159,7 +159,7 @@ tests = ["asttokens (>=2.1.0)", "ipython", "pytest", "coverage", "coverage-enabl
 
 [[package]]
 name = "ezkl"
-version = "5.0.8"
+version = "7.0.0"
 description = ""
 category = "main"
 optional = false
@@ -973,7 +973,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-ena
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "8ee9be283f6db12adbeda6af40dca6847eb117df36f6b6ace0d472c15e58c91d"
+content-hash = "03cd7c0d02c4808c77b5a68746bb6b1ebbc014edabea0ed29e9d490e07863029"
 
 [metadata.files]
 appnope = []

@@ -262,3 +262,18 @@ def verifier_verify(proof_path, settings_path, vk_path):
 
   assert res == True
   print("verified")
+
+
+def gen_data_commitment(data_path: str) -> int:
+  """
+  Generate a commitment to the data. The data can only be a list of floats now.
+  """
+
+  with open(data_path) as f:
+      data_json = json.load(f)
+  data_list = data_json["input_data"][0]
+  print("Data list:", data_list)
+  data_transformed = [ezkl.float_to_vecu64(x, 7) for x in data_list]
+  hashed = ezkl.poseidon_hash(data_transformed)[0]
+  print("hashed: ", hashed)
+  return int(ezkl.vecu64_to_felt(hashed), 16)
