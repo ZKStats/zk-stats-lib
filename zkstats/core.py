@@ -9,33 +9,14 @@ import numpy as np
 import json
 import time
 
-
-def load_model(module_path: str) -> Type[torch.nn.Module]:
-    """
-    Load a model from a Python module.
-    """
-    # FIXME: This is unsafe since malicious code can be executed
-
-    model_name = "Model"
-    module_name = os.path.splitext(os.path.basename(module_path))[0]
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-
-    try:
-        cls = getattr(module, model_name)
-    except AttributeError:
-        raise ImportError(f"class {model_name} does not exist in {module_name}")
-    return cls
+from zkstats.computation import IModel
 
 
 # Export model
-def export_onnx(model, data_tensor_array, model_loc):
+def export_onnx(model: Type[IModel], data_tensor_array: list[Tensor], model_loc: str):
   circuit = model()
-  # Try running `prepare()` if it exists
   try:
-    circuit.prepare(data_tensor_array)
+    circuit.preprocess(data_tensor_array)
   except AttributeError:
     pass
 
@@ -131,7 +112,7 @@ def process_data(data_path_array, comb_data_path) -> list[Tensor]:
     return data_tensor_array
 
 # we decide to not have comb_data_path as parameter since a bit redundant parameter.
-def prover_gen_settings(data_path_array, comb_data_path, prover_model,prover_model_path, scale, mode, settings_path):
+def prover_gen_settings(data_path_array, comb_data_path, prover_model, prover_model_path, scale, mode, settings_path):
     data_tensor_array = process_data(data_path_array, comb_data_path)
 
     # export onnx file
