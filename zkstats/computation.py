@@ -60,11 +60,19 @@ class IModel(nn.Module):
 
 
 
+# An computation function. Example:
+# def computation(state: State, x: list[torch.Tensor]):
+#     b_0, out_0 = state.median(x[0])
+#     b_1, out_1 = state.median(x[1])
+#     b_2, out_2 = state.mean(torch.tensor([out_0, out_1]).reshape(1,-1,1))
+#     return torch.logical_and(torch.logical_and(b_0, b_1), b_2), out_2
 TComputation = Callable[[State, list[torch.Tensor]], tuple[IsResultPrecise, torch.Tensor]]
+
 
 
 def create_model(computation: TComputation) -> Type[nn.Module]:
     """
+    Create a torch model from a `computation` function defined by user
     """
     state = State()
 
