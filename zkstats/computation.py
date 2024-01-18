@@ -56,10 +56,6 @@ class State:
             if not isinstance(op, op_type):
                 raise Exception(f"operation type mismatch: {op_type=} != {type(op)=}")
 
-            ###
-            # Change the states to avoid race condition
-            #
-
             # Increment the current op index
             self.current_op_index += 1
 
@@ -67,7 +63,6 @@ class State:
             def is_precise() -> IsResultPrecise:
                 return op.ezkl(x)
             self.bools.append(is_precise)
-            ###
 
             # If this is the last operation, aggregate all `is_precise`, and return (is_precise_aggregated, result)
             # else, return only result
@@ -77,10 +72,12 @@ class State:
                 if len_ops != len_bools:
                     raise Exception(f"length mismatch: {len_ops=} != {len_bools=}")
                 is_precise_aggregated = torch.tensor(1.0)
-                for i in range(len_bools):
-                    res = self.bools[i]()
-                    is_precise_aggregated = torch.logical_and(is_precise_aggregated, res)
-                return is_precise_aggregated, op.result
+                # for i in range(len_bools):
+                #     res = self.bools[i]()
+                #     is_precise_aggregated = torch.logical_and(is_precise_aggregated, res)
+                print("!@# LASTTTTT!!!")
+                return self.bools[0](), op.result
+                # return torch.tensor(1.0), op.result
             elif current_op_index > len_ops - 1:
                 # Sanity check that current op index does not exceed the length of ops
                 raise Exception(f"current_op_index out of bound: {current_op_index=} > {len_ops=}")
