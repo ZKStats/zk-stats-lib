@@ -22,7 +22,6 @@ class Operation(ABC):
     def ezkl(self, x: torch.Tensor) -> IsResultPrecise:
         ...
 
-
 class Mean(Operation):
     @classmethod
     def create(cls, x: torch.Tensor, error: float) -> 'Mean':
@@ -33,11 +32,27 @@ class Mean(Operation):
         return torch.abs(torch.sum(X)-size[1]*self.result)<=torch.abs(self.error*size[1]*self.result)
 
 
+def to_1d(x: torch.Tensor) -> torch.Tensor:
+    x_shape = x.size()
+    # Only allows 1d array or [1, len(x), 1]
+    if len(x_shape) == 1:
+        return x
+    elif len(x_shape) == 3 and x_shape[0] == 1 and x_shape[2] == 1:
+        return x.reshape(-1)
+    else:
+        raise Exception(f"Unsupported shape: {x_shape=}")
+
+
 class Median(Operation):
     def __init__(self, x: torch.Tensor, error: float):
-        super().__init__(torch.tensor(np.median(x)), error)
-        sorted_x = np.sort(x)
-        len_x = len(x)
+        # NOTE: To ensure `lower` and `upper` are a scalar, `x` must be a 1d array.
+        # Otherwise, if `x` is a 3d array, `lower` and `upper` will be 2d array, which are not what
+        # we want in our context. However, we tend to have x as a `[1, len(x), 1]`. In this case,
+        # we need to flatten `x` to 1d array to get the correct `lower` and `upper`.
+        x_1d = to_1d(x)
+        super().__init__(torch.tensor(np.median(x_1d)), error)
+        sorted_x = np.sort(x_1d)
+        len_x = len(x_1d)
         self.lower = torch.tensor(sorted_x[int(len_x/2)-1])
         self.upper = torch.tensor(sorted_x[int(len_x/2)])
 

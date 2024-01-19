@@ -25,6 +25,7 @@ class State:
         self.ops: list[Operation] = []
         self.bools: list[Callable[[], torch.Tensor]] = []
         self.error: float = error
+        # Pointer to the current operation index. If None, it's in stage 1. If not None, it's in stage 3.
         self.current_op_index: Optional[int] = None
 
     def set_ready_for_exporting_onnx(self) -> None:
@@ -64,7 +65,7 @@ class State:
                 return op.ezkl(x)
             self.bools.append(is_precise)
 
-            # If this is the last operation, aggregate all `is_precise`, and return (is_precise_aggregated, result)
+            # If this is the last operation, aggregate all `is_precise` in `self.bools`, and return (is_precise_aggregated, result)
             # else, return only result
             if current_op_index == len_ops - 1:
                 # Sanity check for length of self.ops and self.bools
@@ -72,12 +73,10 @@ class State:
                 if len_ops != len_bools:
                     raise Exception(f"length mismatch: {len_ops=} != {len_bools=}")
                 is_precise_aggregated = torch.tensor(1.0)
-                # for i in range(len_bools):
-                #     res = self.bools[i]()
-                #     is_precise_aggregated = torch.logical_and(is_precise_aggregated, res)
-                print("!@# LASTTTTT!!!")
-                return self.bools[0](), op.result
-                # return torch.tensor(1.0), op.result
+                for i in range(len_bools):
+                    res = self.bools[i]()
+                    is_precise_aggregated = torch.logical_and(is_precise_aggregated, res)
+                return is_precise_aggregated, op.result
             elif current_op_index > len_ops - 1:
                 # Sanity check that current op index does not exceed the length of ops
                 raise Exception(f"current_op_index out of bound: {current_op_index=} > {len_ops=}")
