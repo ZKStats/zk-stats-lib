@@ -104,7 +104,7 @@ class IModel(nn.Module):
 TComputation = Callable[[State, list[torch.Tensor]], tuple[IsResultPrecise, torch.Tensor]]
 
 
-def create_model(computation: TComputation, error: float = DEFAULT_ERROR) -> Type[IModel]:
+def create_model(computation: TComputation, error: float = DEFAULT_ERROR) -> tuple[State, Type[IModel]]:
     """
     Create a torch model from a `computation` function defined by user
     """
@@ -118,4 +118,4 @@ def create_model(computation: TComputation, error: float = DEFAULT_ERROR) -> Typ
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             return computation(state, x)
 
-    return Model
+    return state, Model

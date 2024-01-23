@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod, abstractclassmethod
 
-
 import numpy as np
 import torch
-
 
 # boolean: either 1.0 or 0.0
 IsResultPrecise = torch.Tensor
@@ -22,14 +20,15 @@ class Operation(ABC):
     def ezkl(self, x: torch.Tensor) -> IsResultPrecise:
         ...
 
+
 class Mean(Operation):
     @classmethod
     def create(cls, x: torch.Tensor, error: float) -> 'Mean':
         return cls(torch.mean(x), error)
 
-    def ezkl(self, X: torch.Tensor) -> IsResultPrecise:
-        size = X.size()
-        return torch.abs(torch.sum(X)-size[1]*self.result)<=torch.abs(self.error*size[1]*self.result)
+    def ezkl(self, x: torch.Tensor) -> IsResultPrecise:
+        size = x.size()
+        return torch.abs(torch.sum(x)-size[1]*self.result)<=torch.abs(self.error*size[1]*self.result)
 
 
 def to_1d(x: torch.Tensor) -> torch.Tensor:

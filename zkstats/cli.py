@@ -1,7 +1,12 @@
 import os
-import click
+import sys
+from typing import Type
+import importlib.util
 
-from .core import prover_gen_proof, prover_setup, load_model, verifier_verify, gen_data_commitment
+import click
+import torch
+
+from .core import prover_gen_proof, prover_gen_settings, verifier_setup, verifier_verify, gen_data_commitment
 
 cwd = os.getcwd()
 # TODO: Should make this configurable
@@ -29,14 +34,18 @@ def cli():
 def prove(model_path: str, data_path: str):
     model = load_model(model_path)
     print("Loaded model:", model)
-    prover_setup(
+    prover_gen_settings(
         [data_path],
         comb_data_path,
         model,
         model_onnx_path,
-        compiled_model_path,
         "default",
         "resources",
+        settings_path,
+    )
+    verifier_setup(
+        model_path,
+        compiled_model_path,
         settings_path,
         vk_path,
         pk_path,
@@ -78,6 +87,26 @@ def commit(data_path: str):
 
 def main():
     cli()
+
+
+def load_model(module_path: str) -> Type[torch.nn.Module]:
+    """
+    Load a model from a Python module.
+    """
+    # FIXME: This is unsafe since malicious code can be executed
+
+    model_name = "Model"
+    module_name = os.path.splitext(os.path.basename(module_path))[0]
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    try:
+        cls = getattr(module, model_name)
+    except AttributeError:
+        raise ImportError(f"class {model_name} does not exist in {module_name}")
+    return cls
 
 
 # Register commands
