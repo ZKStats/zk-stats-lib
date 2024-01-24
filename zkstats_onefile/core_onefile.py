@@ -103,8 +103,8 @@ def gen_settings(sel_data_path, onnx_filename, scale, mode, settings_filename):
 # ===================================================================================================
 
 # Here dummy_sel_data_path is redundant, but here to use process_data
-def verifier_define_calculation(dummy_data_path,index_array, dummy_sel_data_path, verifier_model, verifier_model_path):
-  dummy_data_tensor_array = process_data(dummy_data_path,index_array, dummy_sel_data_path)
+def verifier_define_calculation(dummy_data_path,col_array, dummy_sel_data_path, verifier_model, verifier_model_path):
+  dummy_data_tensor_array = process_data(dummy_data_path, col_array, dummy_sel_data_path)
   # export onnx file
   export_onnx(verifier_model, dummy_data_tensor_array, verifier_model_path)
 
@@ -113,17 +113,16 @@ def verifier_define_calculation(dummy_data_path,index_array, dummy_sel_data_path
 # ===================================================================================================
 
 # New version
-def process_data(data_path,index_array, sel_data_path) -> list[Tensor]:
+def process_data(data_path,col_array, sel_data_path) -> list[Tensor]:
     data_tensor_array=[]
     sel_data = []
-    data_onefile = np.array(
-          json.loads(open(data_path, "r").read())["input_data"]
-        )
-    for index in index_array:
-      data = data_onefile[index]
-      data_tensor = torch.tensor(data)
+    data_onefile = json.loads(open(data_path, "r").read())
+      
+    for col in col_array:
+      data = data_onefile[col]
+      data_tensor = torch.tensor(data, dtype = torch.float64)
       data_tensor_array.append(torch.reshape(data_tensor, (1,-1,1)))
-      sel_data.append(data.tolist())
+      sel_data.append(data)
     # Serialize data into file:
     # sel_data comes from `data`
     json.dump(dict(input_data = sel_data), open(sel_data_path, 'w' ))
@@ -131,8 +130,8 @@ def process_data(data_path,index_array, sel_data_path) -> list[Tensor]:
 
 
 # we decide to not have sel_data_path as parameter since a bit redundant parameter.
-def prover_gen_settings(data_path, index_array,  sel_data_path, prover_model,prover_model_path, scale, mode, settings_path):
-    data_tensor_array = process_data(data_path,index_array,  sel_data_path)
+def prover_gen_settings(data_path, col_array,  sel_data_path, prover_model,prover_model_path, scale, mode, settings_path):
+    data_tensor_array = process_data(data_path,col_array,  sel_data_path)
 
     # export onnx file
     export_onnx(prover_model, data_tensor_array, prover_model_path)
@@ -173,7 +172,7 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
 
 def prover_setup(
     data_path,
-    index_array, 
+    col_array, 
     sel_data_path,
     prover_model,
     prover_model_path,
@@ -184,7 +183,7 @@ def prover_setup(
     vk_path,
     pk_path,
 ):
-    data_tensor_array = process_data(data_path, index_array, sel_data_path)
+    data_tensor_array = process_data(data_path, col_array, sel_data_path)
 
     # export onnx file
     export_onnx(prover_model, data_tensor_array, prover_model_path)
