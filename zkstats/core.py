@@ -73,7 +73,8 @@ def export_onnx(model, data_tensor_array, model_loc):
 # ===================================================================================================
 
 # mode is either "accuracy" or "resources"
-def gen_settings(comb_data_path, onnx_filename, scale, mode, settings_filename):
+# sel_data = selected column from data that will be used for computation
+def gen_settings(sel_data_path, onnx_filename, scale, mode, settings_filename):
   print("==== Generate & Calibrate Setting ====")
   # Set input to be Poseidon Hash, and param of computation graph to be public
   # Poseidon is not homomorphic additive, maybe consider Pedersens or Dory commitment.
@@ -86,13 +87,13 @@ def gen_settings(comb_data_path, onnx_filename, scale, mode, settings_filename):
   ezkl.gen_settings(onnx_filename, settings_filename, py_run_args=gip_run_args)
   if scale =="default":
     ezkl.calibrate_settings(
-    comb_data_path, onnx_filename, settings_filename, mode)
+    sel_data_path, onnx_filename, settings_filename, mode)
   else:
     ezkl.calibrate_settings(
-    comb_data_path, onnx_filename, settings_filename, mode, scales = scale)
+    sel_data_path, onnx_filename, settings_filename, mode, scales = scale)
 
   assert os.path.exists(settings_filename)
-  assert os.path.exists(comb_data_path)
+  assert os.path.exists(sel_data_path)
   assert os.path.exists(onnx_filename)
   f_setting = open(settings_filename, "r")
   print("scale: ", scale)
@@ -101,43 +102,51 @@ def gen_settings(comb_data_path, onnx_filename, scale, mode, settings_filename):
 # ===================================================================================================
 # ===================================================================================================
 
-def verifier_define_calculation(verifier_model, verifier_model_path, dummy_data_path_array):
-  # load data from dummy_data_path_array into dummy_data_tensor_array
-  dummy_data_tensor_array = []
-  for path in dummy_data_path_array:
-    dummy_data = np.array(json.loads(open(path, "r").read())["input_data"][0])
-    dummy_data_tensor_array.append(torch.reshape(torch.tensor(dummy_data), (1, len(dummy_data),1 )))
+# Here dummy_sel_data_path is redundant, but here to use process_data
+def verifier_define_calculation(dummy_data_path,col_array, dummy_sel_data_path, verifier_model, verifier_model_path):
+  dummy_data_tensor_array = process_data(dummy_data_path, col_array, dummy_sel_data_path)
   # export onnx file
   export_onnx(verifier_model, dummy_data_tensor_array, verifier_model_path)
 
+# given data file (whole json table), create a dummy data file with randomized data
+def createDummy(data_path, dummy_data_path):
+    data = json.loads(open(data_path, "r").read())
+    # assume all columns have same number of rows
+    dummy_data ={}
+    for col in data:
+        # not use same value for every column to prevent something weird, like singular matrix
+        dummy_data[col] = np.round(np.random.uniform(1,30,len(data[col])),1).tolist()
+    
+    json.dump(dummy_data, open(dummy_data_path, 'w'))
+
 # ===================================================================================================
 # ===================================================================================================
 
-def process_data(data_path_array, comb_data_path) -> list[Tensor]:
-    # Load data from data_path_array into data_tensor_array
+# New version
+def process_data(data_path,col_array, sel_data_path) -> list[Tensor]:
     data_tensor_array=[]
-    comb_data = []
-    for path in data_path_array:
-        data = np.array(
-          json.loads(open(path, "r").read())["input_data"][0]
-        )
-        data_tensor = torch.tensor(data)
-        t = (1, len(data), 1)
-        data_tensor_array.append(torch.reshape(data_tensor, t))
-        comb_data.append(data.tolist())
+    sel_data = []
+    data_onefile = json.loads(open(data_path, "r").read())
+      
+    for col in col_array:
+      data = data_onefile[col]
+      data_tensor = torch.tensor(data, dtype = torch.float64)
+      data_tensor_array.append(torch.reshape(data_tensor, (1,-1,1)))
+      sel_data.append(data)
     # Serialize data into file:
-    # comb_data comes from `data`
-    json.dump(dict(input_data = comb_data), open(comb_data_path, 'w' ))
+    # sel_data comes from `data`
+    json.dump(dict(input_data = sel_data), open(sel_data_path, 'w' ))
     return data_tensor_array
 
-# we decide to not have comb_data_path as parameter since a bit redundant parameter.
-def prover_gen_settings(data_path_array, comb_data_path, prover_model,prover_model_path, scale, mode, settings_path):
-    data_tensor_array = process_data(data_path_array, comb_data_path)
+
+# we decide to not have sel_data_path as parameter since a bit redundant parameter.
+def prover_gen_settings(data_path, col_array,  sel_data_path, prover_model,prover_model_path, scale, mode, settings_path):
+    data_tensor_array = process_data(data_path,col_array,  sel_data_path)
 
     # export onnx file
     export_onnx(prover_model, data_tensor_array, prover_model_path)
     # gen + calibrate setting
-    gen_settings(comb_data_path, prover_model_path, scale, mode, settings_path)
+    gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
 
 # ===================================================================================================
 # ===================================================================================================
@@ -172,8 +181,9 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
 # ===================================================================================================
 
 def prover_setup(
-    data_path_array,
-    comb_data_path,
+    data_path,
+    col_array, 
+    sel_data_path,
     prover_model,
     prover_model_path,
     prover_compiled_model_path,
@@ -183,18 +193,18 @@ def prover_setup(
     vk_path,
     pk_path,
 ):
-    data_tensor_array = process_data(data_path_array, comb_data_path)
+    data_tensor_array = process_data(data_path, col_array, sel_data_path)
 
     # export onnx file
     export_onnx(prover_model, data_tensor_array, prover_model_path)
     # gen + calibrate setting
-    gen_settings(comb_data_path, prover_model_path, scale, mode, settings_path)
+    gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
     verifier_setup(prover_model_path, prover_compiled_model_path, settings_path, vk_path, pk_path)
 
 
 def prover_gen_proof(
     prover_model_path,
-    comb_data_path,
+    sel_data_path,
     witness_path,
     prover_compiled_model_path,
     settings_path,
@@ -207,7 +217,7 @@ def prover_gen_proof(
     assert res == True
     # now generate the witness file
     print('==== Generating Witness ====')
-    witness = ezkl.gen_witness(comb_data_path, prover_compiled_model_path, witness_path)
+    witness = ezkl.gen_witness(sel_data_path, prover_compiled_model_path, witness_path)
     assert os.path.isfile(witness_path)
     # print(witness["outputs"])
     settings = json.load(open(settings_path))
