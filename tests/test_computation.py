@@ -2,7 +2,7 @@ import statistics
 import torch
 import torch
 
-from zkstats.computation import State, create_model
+from zkstats.computation import State, computation_to_model
 from zkstats.ops import Mean, Median
 
 from .helpers import compute
@@ -15,7 +15,7 @@ def computation(state: State, x: list[torch.Tensor]):
 
 
 def test_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, error: float):
-    state, model = create_model(computation, error)
+    state, model = computation_to_model(computation, error)
     compute(tmp_path, [column_0, column_1], model)
     assert state.current_op_index == 3
 

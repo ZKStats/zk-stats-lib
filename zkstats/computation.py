@@ -101,10 +101,10 @@ class IModel(nn.Module):
 #     out_0 = state.median(x[0])
 #     out_1 = state.median(x[1])
 #     return state.mean(torch.tensor([out_0, out_1]).reshape(1,-1,1))
-TComputation = Callable[[State, list[torch.Tensor]], tuple[IsResultPrecise, torch.Tensor]]
+TComputation = Callable[[State, list[torch.Tensor]], torch.Tensor]
 
 
-def create_model(computation: TComputation, error: float = DEFAULT_ERROR) -> tuple[State, Type[IModel]]:
+def computation_to_model(computation: TComputation, error: float = DEFAULT_ERROR) -> tuple[State, Type[IModel]]:
     """
     Create a torch model from a `computation` function defined by user
     """

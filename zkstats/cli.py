@@ -7,6 +7,7 @@ import click
 import torch
 
 from .core import prover_gen_proof, prover_gen_settings, verifier_setup, verifier_verify, gen_data_commitment
+from .computation import computation_to_model, State
 
 cwd = os.getcwd()
 # TODO: Should make this configurable
@@ -18,7 +19,6 @@ pk_path = f"{output_dir}/model.pk"
 vk_path = f"{output_dir}/model.vk"
 proof_path = f"{output_dir}/model.pf"
 settings_path = f"{output_dir}/settings.json"
-srs_path = f"{output_dir}/kzg.srs"
 witness_path = f"{output_dir}/witness.json"
 comb_data_path = f"{output_dir}/comb_data.json"
 
@@ -29,11 +29,11 @@ def cli():
 
 
 @click.command()
-@click.argument('model_path')
+@click.argument('computation_path')
 @click.argument('data_path')
-def prove(model_path: str, data_path: str):
-    model = load_model(model_path)
-    print("Loaded model:", model)
+def prove(computation_path: str, data_path: str):
+    computation = load_computation(computation_path)
+    _, model = computation_to_model(computation)
     prover_gen_settings(
         [data_path],
         comb_data_path,
@@ -44,7 +44,7 @@ def prove(model_path: str, data_path: str):
         settings_path,
     )
     verifier_setup(
-        model_path,
+        model_onnx_path,
         compiled_model_path,
         settings_path,
         vk_path,
@@ -89,13 +89,13 @@ def main():
     cli()
 
 
-def load_model(module_path: str) -> Type[torch.nn.Module]:
+def load_computation(module_path: str) -> Type[torch.nn.Module]:
     """
     Load a model from a Python module.
     """
     # FIXME: This is unsafe since malicious code can be executed
 
-    model_name = "Model"
+    model_name = "computation"
     module_name = os.path.splitext(os.path.basename(module_path))[0]
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     module = importlib.util.module_from_spec(spec)
@@ -103,10 +103,9 @@ def load_model(module_path: str) -> Type[torch.nn.Module]:
     spec.loader.exec_module(module)
 
     try:
-        cls = getattr(module, model_name)
+        return getattr(module, model_name)
     except AttributeError:
-        raise ImportError(f"class {model_name} does not exist in {module_name}")
-    return cls
+        raise ImportError(f"{model_name=} does not exist in {module_name=}")
 
 
 # Register commands
