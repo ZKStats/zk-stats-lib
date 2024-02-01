@@ -1,4 +1,4 @@
-# For comparing among different datasets. Mostly similar to core.py 
+# For comparing among different datasets. Mostly similar to core.py
 # but make it print less info to make us see bigger picture better
 
 import sys
@@ -93,14 +93,14 @@ def verifier_define_calculation(dummy_data_path,col_array, dummy_sel_data_path, 
   export_onnx(verifier_model, dummy_data_tensor_array, verifier_model_path)
 
 # given data file (whole json table), create a dummy data file with randomized data
-def createDummy(data_path, dummy_data_path):
+def create_dummy(data_path, dummy_data_path):
     data = json.loads(open(data_path, "r").read())
     # assume all columns have same number of rows
     dummy_data ={}
     for col in data:
         # not use same value for every column to prevent something weird, like singular matrix
         dummy_data[col] = np.round(np.random.uniform(1,30,len(data[col])),1).tolist()
-    
+
     json.dump(dummy_data, open(dummy_data_path, 'w'))
 
 # ===================================================================================================
@@ -111,7 +111,7 @@ def process_data(data_path,col_array, sel_data_path) -> list[Tensor]:
     data_tensor_array=[]
     sel_data = []
     data_onefile = json.loads(open(data_path, "r").read())
-      
+
     for col in col_array:
       data = data_onefile[col]
       data_tensor = torch.tensor(data, dtype = torch.float64)
@@ -166,7 +166,7 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
 
 def prover_setup(
     data_path,
-    col_array, 
+    col_array,
     sel_data_path,
     prover_model,
     prover_model_path,
@@ -264,8 +264,8 @@ def verifier_verify(proof_path, settings_path, vk_path):
   return result
 
 
-# ===================================================================================================  
-# ===================================================================================================  
+# ===================================================================================================
+# ===================================================================================================
 
 # just one dataset at a time.
 def bench_one(data_path, col_array, model_func, gen_param_func, data_name, scale,logrow, mode):
@@ -286,10 +286,10 @@ def bench_one(data_path, col_array, model_func, gen_param_func, data_name, scale
     # this is just dummy random value
     sel_dummy_data_path = os.path.join('shared/sel_dummy_data.json')
     dummy_data_path = os.path.join('shared/dummy_data.json')
-        
+
     print("===================================== ", data_name," =====================================")
     # go through each dataset (we have 9 data sets)
-    createDummy(data_path, dummy_data_path)
+    create_dummy(data_path, dummy_data_path)
     dummy_data_tensor_array = process_data(dummy_data_path, col_array, sel_dummy_data_path)
 
     # verifier_define_calculation
