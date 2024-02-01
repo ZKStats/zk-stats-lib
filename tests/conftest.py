@@ -16,3 +16,7 @@ def column_0():
 def column_1():
     return torch.tensor([2.7, 3.3, 1.1, 2.2, 3.8, 8.2, 4.4])
 
+
+@pytest.fixture
+def scales():
+    return [2]

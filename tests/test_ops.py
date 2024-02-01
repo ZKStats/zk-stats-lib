@@ -19,12 +19,12 @@ from .helpers import compute
         (Median, statistics.median),
     ]
 )
-def test_1d(tmp_path, column_0: torch.Tensor, error: float, op_type: Type[Operation], expected_func: Callable[[list[float]], float]):
+def test_1d(tmp_path, column_0: torch.Tensor, error: float, op_type: Type[Operation], expected_func: Callable[[list[float]], float], scales: list[float]):
     op = op_type.create(column_0, error)
     expected_res = expected_func(column_0.tolist())
     assert expected_res == op.result
     model = op_to_model(op)
-    compute(tmp_path, [column_0], model)
+    compute(tmp_path, [column_0], model, scales)
 
 
 def op_to_model(op: Operation) -> Type[IModel]:

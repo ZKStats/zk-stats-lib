@@ -164,28 +164,6 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
 # ===================================================================================================
 # ===================================================================================================
 
-def prover_setup(
-    data_path,
-    col_array,
-    sel_data_path,
-    prover_model,
-    prover_model_path,
-    prover_compiled_model_path,
-    scale,
-    mode,
-    settings_path,
-    vk_path,
-    pk_path,
-):
-    data_tensor_array = process_data(data_path, col_array, sel_data_path)
-
-    # export onnx file
-    export_onnx(prover_model, data_tensor_array, prover_model_path)
-    # gen + calibrate setting
-    gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
-    verifier_setup(prover_model_path, prover_compiled_model_path, settings_path, vk_path, pk_path)
-
-
 def prover_gen_proof(
     prover_model_path,
     sel_data_path,

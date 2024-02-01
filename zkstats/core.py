@@ -1,6 +1,5 @@
-import sys
-import importlib.util
-from typing import Type
+from dataclasses import dataclass
+from typing import Type, Sequence, Mapping
 import torch
 from torch import Tensor
 import ezkl
@@ -161,28 +160,6 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
 # ===================================================================================================
 # ===================================================================================================
 
-def prover_setup(
-    data_path,
-    col_array,
-    sel_data_path,
-    prover_model,
-    prover_model_path,
-    prover_compiled_model_path,
-    scale,
-    mode,
-    settings_path,
-    vk_path,
-    pk_path,
-):
-    data_tensor_array = _process_data(data_path, col_array, sel_data_path)
-
-    # export onnx file
-    _export_onnx(prover_model, data_tensor_array, prover_model_path)
-    # gen + calibrate setting
-    _gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
-    verifier_setup(prover_model_path, prover_compiled_model_path, settings_path, vk_path, pk_path)
-
-
 def prover_gen_proof(
     prover_model_path,
     sel_data_path,
@@ -192,9 +169,7 @@ def prover_gen_proof(
     proof_path,
     pk_path
 ):
-    print("!@# compiled_model exists?", os.path.isfile(prover_compiled_model_path))
     res = ezkl.compile_circuit(prover_model_path, prover_compiled_model_path, settings_path)
-    print("!@# compiled_model exists?", os.path.isfile(prover_compiled_model_path))
     assert res == True
     # now generate the witness file
     print('==== Generating Witness ====')
@@ -224,58 +199,85 @@ def prover_gen_proof(
     print(f"Time gen prf: {time_gen_prf} seconds")
     assert os.path.isfile(proof_path)
 
-# ===================================================================================================
-# ===================================================================================================
-def verifier_verify(proof_path, settings_path, vk_path):
-  # enforce boolean statement to be true
-  settings = json.load(open(settings_path))
-  output_scale = settings['model_output_scales']
 
-  # First check the zk proof is valid
+# column_name -> commitment
+TCommitmentMap = Mapping[str, str]
+# scale -> commitment maps
+TCommitmentMaps = Mapping[int, TCommitmentMap]
+
+# ===================================================================================================
+# ===================================================================================================
+def verifier_verify(proof_path: str, settings_path: str, vk_path: str, expected_columns: Sequence[str], commitment_maps: TCommitmentMaps):
+  """
+  :param proof_path: path to the proof file
+  :param settings_path: path to the settings file
+  :param vk_path: path to the verification key file
+  :param expected_data_commitments: expected data commitments for columns. The i-th commitment should
+    be stored in `expected_data_commitments[i]`.
+  """
+
+  # 1. First check the zk proof is valid
   res = ezkl.verify(
     proof_path,
     settings_path,
     vk_path,
   )
+  # TODO: change asserts to return boolean
   assert res == True
 
-  # Then, parse the proof and check the boolean output is true (i.e. the first output is 1.0),
-  # to make sure the result is within error bounds.
-  proof = json.load(open(proof_path))
-  num_inputs = len(settings['model_input_scales'])
-  proof_instance = proof["instances"]
-  print("prf instances: ", proof_instance)
-  print("num_inputs: ", num_inputs)
-  # First output is the boolean result
-  is_valid = ezkl.vecu64_to_float(proof_instance[0][num_inputs], output_scale[0])
-  assert is_valid == 1.0
+  # 2. Check if input/output are correct
+  with open(settings_path) as f:
+    settings = json.load(f)
+  input_scales = settings['model_input_scales']
+  output_scales = settings['model_output_scales']
+  with open(proof_path) as f:
+    proof = json.load(f)
+  proof_instance = proof["instances"][0]
+  inputs = proof_instance[:len(input_scales)]
+  outputs = proof_instance[len(input_scales):]
+  len_inputs = len(inputs)
+  len_outputs = len(outputs)
+  # Output should always be a tuple of 2 elements
+  assert len_outputs == 2, f"outputs should be a tuple of 2 elements, but got {len_outputs=}"
+  # `instances` = input commitments + params (which is 0 in our case) + output
+  assert len(proof_instance) == len_inputs + len_outputs, f"lengths mismatch: {len(proof_instance)=}, {len_inputs=}, {len_outputs=}"
 
-  # Print the parsed proof
-  print("proof boolean: ", is_valid)
-  # TODO: Should we check if the number of outputs is 2?
-  outputs = proof_instance[0][num_inputs+1:]
-  for i, v in enumerate(outputs):
-    print("proof result",i,":", ezkl.vecu64_to_float(v, output_scale[1]))
+  # 2.1 Check input commitments
+  # All inputs are hashed so are commitments
+  assert len_inputs == len(expected_columns)
+  # Sanity check
+  # Check each commitment is correct
+  for i, (actual_commitment, column_name) in enumerate(zip(inputs, expected_columns)):
+     actual_commitment_str = ezkl.vecu64_to_felt(actual_commitment)
+     input_scale = input_scales[i]
+     expected_commitment = commitment_maps[input_scale][column_name]
+     assert actual_commitment_str == expected_commitment, f"commitment mismatch: {i=}, {actual_commitment_str=}, {expected_commitment=}"
+
+  # 2.2 Check output is correct
+  # - is a tuple (is_in_error, result)
+  # - is_valid is True
+  # Sanity check
+  is_in_error = ezkl.vecu64_to_float(outputs[0], output_scales[0])
+  assert is_in_error == 1.0, f"result is not within error"
+  return ezkl.vecu64_to_float(outputs[1], output_scales[1])
 
 
-# TODO: should output something like
-# {
-#   "column0": "0x1234",
-#   "column1": "0x5678"
-# }
-def gen_data_commitment(data_path: str, scale: int) -> int:
-  """
-  Generate a commitment to the data. The data can only be a list of floats now.
-  """
-
-  with open(data_path) as f:
-      data_json = json.load(f)
-  data_list: list[float] = data_json["input_data"][0]
-  print("Data list:", data_list)
+def _get_commitment_for_column(column: list[float], scale: int) -> str:
   # Ref: https://github.com/zkonduit/ezkl/discussions/633
-  serialized_data = [ezkl.float_to_vecu64(x, scale) for x in data_list]
-  print("!@# serialized_data: ", serialized_data)
+  serialized_data = [ezkl.float_to_vecu64(x, scale) for x in column]
   res_poseidon_hash = ezkl.poseidon_hash(serialized_data)
   res_hex = ezkl.vecu64_to_felt(res_poseidon_hash[0])
   return res_hex
 
+
+def get_data_commitment_maps(data_path: str, scales: Sequence[int]) -> TCommitmentMaps:
+  """
+  Generate a map from scale to column name to commitment.
+  """
+  with open(data_path) as f:
+    data_json = json.load(f)
+  return {
+    scale: {
+      k: _get_commitment_for_column(v, scale) for k, v in data_json.items()
+    } for scale in scales
+  }

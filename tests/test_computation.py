@@ -14,9 +14,9 @@ def computation(state: State, x: list[torch.Tensor]):
     return state.mean(torch.tensor([out_0, out_1]).reshape(1,-1,1))
 
 
-def test_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, error: float):
+def test_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, error: float, scales):
     state, model = computation_to_model(computation, error)
-    compute(tmp_path, [column_0, column_1], model)
+    compute(tmp_path, [column_0, column_1], model, scales)
     assert state.current_op_index == 3
 
     ops = state.ops
