@@ -256,3 +256,26 @@ def verifier_verify(proof_path, settings_path, vk_path):
   outputs = proof_instance[0][num_inputs+1:]
   for i, v in enumerate(outputs):
     print("proof result",i,":", ezkl.vecu64_to_float(v, output_scale[1]))
+
+
+# TODO: should output something like
+# {
+#   "column0": "0x1234",
+#   "column1": "0x5678"
+# }
+def gen_data_commitment(data_path: str, scale: int) -> int:
+  """
+  Generate a commitment to the data. The data can only be a list of floats now.
+  """
+
+  with open(data_path) as f:
+      data_json = json.load(f)
+  data_list: list[float] = data_json["input_data"][0]
+  print("Data list:", data_list)
+  # Ref: https://github.com/zkonduit/ezkl/discussions/633
+  serialized_data = [ezkl.float_to_vecu64(x, scale) for x in data_list]
+  print("!@# serialized_data: ", serialized_data)
+  res_poseidon_hash = ezkl.poseidon_hash(serialized_data)
+  res_hex = ezkl.vecu64_to_felt(res_poseidon_hash[0])
+  return res_hex
+
