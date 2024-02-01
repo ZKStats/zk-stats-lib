@@ -9,7 +9,7 @@ from zkstats.computation import IModel, IsResultPrecise
 
 
 def compute(basepath: Path, data: list[torch.Tensor], model: Type[IModel]) -> IsResultPrecise:
-    comb_data_path = basepath / "comb_data.json"
+    sel_data_path = basepath / "comb_data.json"
     model_path = basepath / "model.onnx"
     settings_path = basepath / "settings.json"
     witness_path = basepath / "witness.json"
@@ -17,17 +17,20 @@ def compute(basepath: Path, data: list[torch.Tensor], model: Type[IModel]) -> Is
     proof_path = basepath / "model.proof"
     pk_path = basepath / "model.pk"
     vk_path = basepath / "model.vk"
-    data_paths = [basepath / f"data_{i}.json" for i in range(len(data))]
+    data_path = basepath / "data.json"
 
-    for i, d in enumerate(data):
-        filename = data_paths[i]
-        data_json = {"input_data": [d.tolist()]}
-        with open(filename, "w") as f:
-            f.write(json.dumps(data_json))
+    columns = [f"columns_{i}" for i in range(len(data))]
+    column_to_data = {
+        column: d.tolist()
+        for column, d in zip(columns, data)
+    }
+    with open(data_path, "w") as f:
+        json.dump(column_to_data, f)
 
     prover_gen_settings(
-        data_path_array=[str(i) for i in data_paths],
-        comb_data_path=str(comb_data_path),
+        data_path=data_path,
+        col_array=list(column_to_data.keys()),
+        sel_data_path=str(sel_data_path),
         prover_model=model,
         prover_model_path=str(model_path),
         scale="default",
@@ -43,7 +46,7 @@ def compute(basepath: Path, data: list[torch.Tensor], model: Type[IModel]) -> Is
     )
     prover_gen_proof(
         str(model_path),
-        str(comb_data_path),
+        str(sel_data_path),
         str(witness_path),
         str(compiled_model_path),
         str(settings_path),

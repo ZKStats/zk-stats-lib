@@ -1,3 +1,5 @@
+import sys
+import importlib.util
 from typing import Type
 import torch
 from torch import Tensor
@@ -8,150 +10,6 @@ import json
 import time
 
 from zkstats.computation import IModel
-
-
-# ===================================================================================================
-# ===================================================================================================
-
-def verifier_define_calculation(verifier_model, verifier_model_path, dummy_data_path_array):
-  # load data from dummy_data_path_array into dummy_data_tensor_array
-  dummy_data_tensor_array = []
-  for path in dummy_data_path_array:
-    dummy_data = np.array(json.loads(open(path, "r").read())["input_data"][0])
-    dummy_data_tensor_array.append(torch.reshape(torch.tensor(dummy_data), (1, len(dummy_data),1 )))
-  # export onnx file
-  _export_onnx(verifier_model, dummy_data_tensor_array, verifier_model_path)
-
-# ===================================================================================================
-# ===================================================================================================
-
-# we decide to not have comb_data_path as parameter since a bit redundant parameter.
-def prover_gen_settings(data_path_array, comb_data_path, prover_model, prover_model_path, scale, mode, settings_path):
-    data_tensor_array = _process_data(data_path_array, comb_data_path)
-
-    # export onnx file
-    _export_onnx(prover_model, data_tensor_array, prover_model_path)
-    # gen + calibrate setting
-    _gen_settings(comb_data_path, prover_model_path, scale, mode, settings_path)
-
-# ===================================================================================================
-# ===================================================================================================
-
-# Here prover can concurrently call this since all params are public to get pk.
-# Here write as verifier function to emphasize that verifier must calculate its own vk to be sure
-def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path ):
-  # compile circuit
-  res = ezkl.compile_circuit(verifier_model_path, verifier_compiled_model_path, settings_path)
-  assert res == True
-
-  # srs path
-  res = ezkl.get_srs(settings_path)
-
-  # setup vk, pk param for use..... prover can use same pk or can init their own!
-  print("==== setting up ezkl ====")
-  start_time = time.time()
-  res = ezkl.setup(
-        verifier_compiled_model_path,
-        vk_path,
-        pk_path)
-  end_time = time.time()
-  time_setup = end_time -start_time
-  print(f"Time setup: {time_setup} seconds")
-
-  assert res == True
-  assert os.path.isfile(vk_path)
-  assert os.path.isfile(pk_path)
-  assert os.path.isfile(settings_path)
-
-
-def prover_gen_proof(
-    prover_model_path,
-    comb_data_path,
-    witness_path,
-    prover_compiled_model_path,
-    settings_path,
-    proof_path,
-    pk_path
-):
-    res = ezkl.compile_circuit(prover_model_path, prover_compiled_model_path, settings_path)
-    assert res == True
-    # now generate the witness file
-    print('==== Generating Witness ====')
-    witness = ezkl.gen_witness(comb_data_path, prover_compiled_model_path, witness_path)
-    assert os.path.isfile(witness_path)
-    # print(witness["outputs"])
-    settings = json.load(open(settings_path))
-    output_scale = settings['model_output_scales']
-    print("witness boolean: ", ezkl.vecu64_to_float(witness['outputs'][0][0], output_scale[0]))
-    for i in range(len(witness['outputs'][1])):
-      print("witness result", i+1,":", ezkl.vecu64_to_float(witness['outputs'][1][i], output_scale[1]))
-
-    # GENERATE A PROOF
-    print("==== Generating Proof ====")
-    start_time = time.time()
-    res = ezkl.prove(
-          witness_path,
-          prover_compiled_model_path,
-          pk_path,
-          proof_path,
-          "single",
-      )
-
-    print("proof: " ,res)
-    end_time = time.time()
-    time_gen_prf = end_time -start_time
-    print(f"Time gen prf: {time_gen_prf} seconds")
-    assert os.path.isfile(proof_path)
-
-# ===================================================================================================
-# ===================================================================================================
-
-def verifier_verify(proof_path, settings_path, vk_path):
-  # enforce boolean statement to be true
-  settings = json.load(open(settings_path))
-  output_scale = settings['model_output_scales']
-
-  # First check the zk proof is valid
-  res = ezkl.verify(
-    proof_path,
-    settings_path,
-    vk_path,
-  )
-  print("!@# res: ", res)
-  assert res == True
-
-  # Then, parse the proof and check the boolean output is true (i.e. the first output is 1.0),
-  # to make sure the result is within error bounds.
-  proof = json.load(open(proof_path))
-  num_inputs = len(settings['model_input_scales'])
-  proof_instance = proof["instances"]
-  print("prf instances: ", proof_instance)
-  print("num_inputs: ", num_inputs)
-  # First output is the boolean result
-  is_valid = ezkl.vecu64_to_float(proof_instance[0][num_inputs], output_scale[0])
-  assert is_valid == 1.0
-
-  # Print the parsed proof
-  print("proof boolean: ", is_valid)
-  # TODO: Should we check if the number of outputs is 2?
-  outputs = proof_instance[0][num_inputs+1:]
-  for i, v in enumerate(outputs):
-    print("proof result",i,":", ezkl.vecu64_to_float(v, output_scale[1]))
-
-
-def gen_data_commitment(data_path: str) -> int:
-  """
-  Generate a commitment to the data. The data can only be a list of floats now.
-  """
-
-  with open(data_path) as f:
-      data_json = json.load(f)
-  data_list = data_json["input_data"][0]
-  print("Data list:", data_list)
-  data_transformed = [ezkl.float_to_vecu64(x, 7) for x in data_list]
-  hashed = ezkl.poseidon_hash(data_transformed)[0]
-  print("hashed: ", hashed)
-  return int(ezkl.vecu64_to_felt(hashed), 16)
 
 
 # Export model
@@ -196,7 +54,8 @@ def _export_onnx(model: Type[IModel], data_tensor_array: list[Tensor], model_loc
 # ===================================================================================================
 
 # mode is either "accuracy" or "resources"
-def _gen_settings(comb_data_path, onnx_filename, scale, mode, settings_filename):
+# sel_data = selected column from data that will be used for computation
+def _gen_settings(sel_data_path, onnx_filename, scale, mode, settings_filename):
   print("==== Generate & Calibrate Setting ====")
   # Set input to be Poseidon Hash, and param of computation graph to be public
   # Poseidon is not homomorphic additive, maybe consider Pedersens or Dory commitment.
@@ -209,32 +68,191 @@ def _gen_settings(comb_data_path, onnx_filename, scale, mode, settings_filename)
   ezkl.gen_settings(onnx_filename, settings_filename, py_run_args=gip_run_args)
   if scale =="default":
     ezkl.calibrate_settings(
-    comb_data_path, onnx_filename, settings_filename, mode)
+    sel_data_path, onnx_filename, settings_filename, mode)
   else:
     ezkl.calibrate_settings(
-    comb_data_path, onnx_filename, settings_filename, mode, scales = scale)
+    sel_data_path, onnx_filename, settings_filename, mode, scales = scale)
 
   assert os.path.exists(settings_filename)
-  assert os.path.exists(comb_data_path)
+  assert os.path.exists(sel_data_path)
   assert os.path.exists(onnx_filename)
   f_setting = open(settings_filename, "r")
   print("scale: ", scale)
   print("setting: ", f_setting.read())
 
-def _process_data(data_path_array, comb_data_path) -> list[Tensor]:
-    # Load data from data_path_array into data_tensor_array
+# ===================================================================================================
+# ===================================================================================================
+
+# Here dummy_sel_data_path is redundant, but here to use process_data
+def verifier_define_calculation(dummy_data_path, col_array, dummy_sel_data_path, verifier_model, verifier_model_path):
+  dummy_data_tensor_array = _process_data(dummy_data_path, col_array, dummy_sel_data_path)
+  # export onnx file
+  _export_onnx(verifier_model, dummy_data_tensor_array, verifier_model_path)
+
+# given data file (whole json table), create a dummy data file with randomized data
+def create_dummy(data_path, dummy_data_path):
+    data = json.loads(open(data_path, "r").read())
+    # assume all columns have same number of rows
+    dummy_data ={}
+    for col in data:
+        # not use same value for every column to prevent something weird, like singular matrix
+        dummy_data[col] = np.round(np.random.uniform(1,30,len(data[col])),1).tolist()
+
+    json.dump(dummy_data, open(dummy_data_path, 'w'))
+
+# ===================================================================================================
+# ===================================================================================================
+
+# New version
+def _process_data(data_path, col_array, sel_data_path) -> list[Tensor]:
     data_tensor_array=[]
-    comb_data = []
-    for path in data_path_array:
-        data = np.array(
-          json.loads(open(path, "r").read())["input_data"][0]
-        )
-        data_tensor = torch.tensor(data)
-        t = (1, len(data), 1)
-        data_tensor_array.append(torch.reshape(data_tensor, t))
-        comb_data.append(data.tolist())
+    sel_data = []
+    data_onefile = json.loads(open(data_path, "r").read())
+
+    for col in col_array:
+      data = data_onefile[col]
+      data_tensor = torch.tensor(data, dtype = torch.float64)
+      data_tensor_array.append(torch.reshape(data_tensor, (1,-1,1)))
+      sel_data.append(data)
     # Serialize data into file:
-    # comb_data comes from `data`
-    json.dump(dict(input_data = comb_data), open(comb_data_path, 'w' ))
+    # sel_data comes from `data`
+    json.dump(dict(input_data = sel_data), open(sel_data_path, 'w'))
     return data_tensor_array
 
+
+# we decide to not have sel_data_path as parameter since a bit redundant parameter.
+def prover_gen_settings(data_path, col_array, sel_data_path, prover_model,prover_model_path, scale, mode, settings_path):
+    data_tensor_array = _process_data(data_path,col_array,  sel_data_path)
+
+    # export onnx file
+    _export_onnx(prover_model, data_tensor_array, prover_model_path)
+    # gen + calibrate setting
+    _gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
+
+# ===================================================================================================
+# ===================================================================================================
+
+# Here prover can concurrently call this since all params are public to get pk.
+# Here write as verifier function to emphasize that verifier must calculate its own vk to be sure
+def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path, vk_path, pk_path):
+  # compile circuit
+  res = ezkl.compile_circuit(verifier_model_path, verifier_compiled_model_path, settings_path)
+  assert res == True
+
+  # srs path
+  res = ezkl.get_srs(settings_path)
+
+  # setup vk, pk param for use..... prover can use same pk or can init their own!
+  print("==== setting up ezkl ====")
+  start_time = time.time()
+  res = ezkl.setup(
+        verifier_compiled_model_path,
+        vk_path,
+        pk_path)
+  end_time = time.time()
+  time_setup = end_time -start_time
+  print(f"Time setup: {time_setup} seconds")
+
+  assert res == True
+  assert os.path.isfile(vk_path)
+  assert os.path.isfile(pk_path)
+  assert os.path.isfile(settings_path)
+
+# ===================================================================================================
+# ===================================================================================================
+
+def prover_setup(
+    data_path,
+    col_array,
+    sel_data_path,
+    prover_model,
+    prover_model_path,
+    prover_compiled_model_path,
+    scale,
+    mode,
+    settings_path,
+    vk_path,
+    pk_path,
+):
+    data_tensor_array = _process_data(data_path, col_array, sel_data_path)
+
+    # export onnx file
+    _export_onnx(prover_model, data_tensor_array, prover_model_path)
+    # gen + calibrate setting
+    _gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
+    verifier_setup(prover_model_path, prover_compiled_model_path, settings_path, vk_path, pk_path)
+
+
+def prover_gen_proof(
+    prover_model_path,
+    sel_data_path,
+    witness_path,
+    prover_compiled_model_path,
+    settings_path,
+    proof_path,
+    pk_path
+):
+    print("!@# compiled_model exists?", os.path.isfile(prover_compiled_model_path))
+    res = ezkl.compile_circuit(prover_model_path, prover_compiled_model_path, settings_path)
+    print("!@# compiled_model exists?", os.path.isfile(prover_compiled_model_path))
+    assert res == True
+    # now generate the witness file
+    print('==== Generating Witness ====')
+    witness = ezkl.gen_witness(sel_data_path, prover_compiled_model_path, witness_path)
+    assert os.path.isfile(witness_path)
+    # print(witness["outputs"])
+    settings = json.load(open(settings_path))
+    output_scale = settings['model_output_scales']
+    print("witness boolean: ", ezkl.vecu64_to_float(witness['outputs'][0][0], output_scale[0]))
+    for i in range(len(witness['outputs'][1])):
+      print("witness result", i+1,":", ezkl.vecu64_to_float(witness['outputs'][1][i], output_scale[1]))
+
+    # GENERATE A PROOF
+    print("==== Generating Proof ====")
+    start_time = time.time()
+    res = ezkl.prove(
+          witness_path,
+          prover_compiled_model_path,
+          pk_path,
+          proof_path,
+          "single",
+      )
+
+    print("proof: " ,res)
+    end_time = time.time()
+    time_gen_prf = end_time -start_time
+    print(f"Time gen prf: {time_gen_prf} seconds")
+    assert os.path.isfile(proof_path)
+
+# ===================================================================================================
+# ===================================================================================================
+def verifier_verify(proof_path, settings_path, vk_path):
+  # enforce boolean statement to be true
+  settings = json.load(open(settings_path))
+  output_scale = settings['model_output_scales']
+
+  # First check the zk proof is valid
+  res = ezkl.verify(
+    proof_path,
+    settings_path,
+    vk_path,
+  )
+  assert res == True
+
+  # Then, parse the proof and check the boolean output is true (i.e. the first output is 1.0),
+  # to make sure the result is within error bounds.
+  proof = json.load(open(proof_path))
+  num_inputs = len(settings['model_input_scales'])
+  proof_instance = proof["instances"]
+  print("prf instances: ", proof_instance)
+  print("num_inputs: ", num_inputs)
+  # First output is the boolean result
+  is_valid = ezkl.vecu64_to_float(proof_instance[0][num_inputs], output_scale[0])
+  assert is_valid == 1.0
+
+  # Print the parsed proof
+  print("proof boolean: ", is_valid)
+  # TODO: Should we check if the number of outputs is 2?
+  outputs = proof_instance[0][num_inputs+1:]
+  for i, v in enumerate(outputs):
+    print("proof result",i,":", ezkl.vecu64_to_float(v, output_scale[1]))

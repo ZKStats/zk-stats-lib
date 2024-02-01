@@ -1,18 +1,31 @@
-# For comparing among different datasets. Mostly similar to core.py 
+# For comparing among different datasets. Mostly similar to core.py
 # but make it print less info to make us see bigger picture better
 
+import sys
+import importlib.util
+from typing import Type
 import torch
+from torch import Tensor
 import ezkl
 import os
 import numpy as np
 import json
 import time
+import math
+
 
 # Export model
 def export_onnx(model, data_tensor_array, model_loc):
   circuit = model()
+  # Try running `prepare()` if it exists
+  try:
+    circuit.prepare(data_tensor_array)
+  except AttributeError:
+    pass
 
   device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+  # print(device)
 
   circuit.to(device)
 
@@ -39,13 +52,14 @@ def export_onnx(model, data_tensor_array, model_loc):
                       input_names = input_names,   # the model's input names
                       output_names = ['output'], # the model's output names
                       dynamic_axes=dynamic_axes)
-  
-# ===================================================================================================  
-# ===================================================================================================  
+
+# ===================================================================================================
+# ===================================================================================================
 
 # mode is either "accuracy" or "resources"
-def gen_settings(comb_data_path, onnx_filename, scale, mode, settings_filename):
-#   print("==== Generate & Calibrate Setting ====")
+# sel_data = selected column from data that will be used for computation
+def gen_settings(sel_data_path, onnx_filename, scale, mode, settings_filename):
+  # print("==== Generate & Calibrate Setting ====")
   # Set input to be Poseidon Hash, and param of computation graph to be public
   # Poseidon is not homomorphic additive, maybe consider Pedersens or Dory commitment.
   gip_run_args = ezkl.PyRunArgs()
@@ -57,19 +71,71 @@ def gen_settings(comb_data_path, onnx_filename, scale, mode, settings_filename):
   ezkl.gen_settings(onnx_filename, settings_filename, py_run_args=gip_run_args)
   if scale =="default":
     ezkl.calibrate_settings(
-    comb_data_path, onnx_filename, settings_filename, mode)
+    sel_data_path, onnx_filename, settings_filename, mode)
   else:
     ezkl.calibrate_settings(
-    comb_data_path, onnx_filename, settings_filename, mode, scales = scale)
+    sel_data_path, onnx_filename, settings_filename, mode, scales = scale)
 
   assert os.path.exists(settings_filename)
-  assert os.path.exists(comb_data_path)
+  assert os.path.exists(sel_data_path)
   assert os.path.exists(onnx_filename)
+  f_setting = open(settings_filename, "r")
+  # print("scale: ", scale)
+  # print("setting: ", f_setting.read())
 
-# ===================================================================================================  
-# ===================================================================================================  
+# ===================================================================================================
+# ===================================================================================================
 
-# Here prover can concurrently call this since all params are public to get pk. 
+# Here dummy_sel_data_path is redundant, but here to use process_data
+def verifier_define_calculation(dummy_data_path,col_array, dummy_sel_data_path, verifier_model, verifier_model_path):
+  dummy_data_tensor_array = process_data(dummy_data_path, col_array, dummy_sel_data_path)
+  # export onnx file
+  export_onnx(verifier_model, dummy_data_tensor_array, verifier_model_path)
+
+# given data file (whole json table), create a dummy data file with randomized data
+def create_dummy(data_path, dummy_data_path):
+    data = json.loads(open(data_path, "r").read())
+    # assume all columns have same number of rows
+    dummy_data ={}
+    for col in data:
+        # not use same value for every column to prevent something weird, like singular matrix
+        dummy_data[col] = np.round(np.random.uniform(1,30,len(data[col])),1).tolist()
+
+    json.dump(dummy_data, open(dummy_data_path, 'w'))
+
+# ===================================================================================================
+# ===================================================================================================
+
+# New version
+def process_data(data_path,col_array, sel_data_path) -> list[Tensor]:
+    data_tensor_array=[]
+    sel_data = []
+    data_onefile = json.loads(open(data_path, "r").read())
+
+    for col in col_array:
+      data = data_onefile[col]
+      data_tensor = torch.tensor(data, dtype = torch.float64)
+      data_tensor_array.append(torch.reshape(data_tensor, (1,-1,1)))
+      sel_data.append(data)
+    # Serialize data into file:
+    # sel_data comes from `data`
+    json.dump(dict(input_data = sel_data), open(sel_data_path, 'w' ))
+    return data_tensor_array
+
+
+# we decide to not have sel_data_path as parameter since a bit redundant parameter.
+def prover_gen_settings(data_path, col_array,  sel_data_path, prover_model,prover_model_path, scale, mode, settings_path):
+    data_tensor_array = process_data(data_path,col_array,  sel_data_path)
+
+    # export onnx file
+    export_onnx(prover_model, data_tensor_array, prover_model_path)
+    # gen + calibrate setting
+    gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
+
+# ===================================================================================================
+# ===================================================================================================
+
+# Here prover can concurrently call this since all params are public to get pk.
 # Here write as verifier function to emphasize that verifier must calculate its own vk to be sure
 def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path ):
   # compile circuit
@@ -79,8 +145,8 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
   # srs path
   res = ezkl.get_srs(settings_path)
 
-  # setupt vk, pk param for use..... prover can use same pk or can init their own!
-#   print("==== setting up ezkl ====")
+  # setup vk, pk param for use..... prover can use same pk or can init their own!
+  # print("==== setting up ezkl ====")
   start_time = time.time()
   res = ezkl.setup(
         verifier_compiled_model_path,
@@ -88,51 +154,82 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
         pk_path)
   end_time = time.time()
   time_setup = end_time -start_time
-#   print(f"Time setup: {time_setup} seconds")
+  # print(f"Time setup: {time_setup} seconds")
 
   assert res == True
   assert os.path.isfile(vk_path)
   assert os.path.isfile(pk_path)
   assert os.path.isfile(settings_path)
 
-# ===================================================================================================  
-# ===================================================================================================  
+# ===================================================================================================
+# ===================================================================================================
 
-# return time gen proof
-def prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path):
-  res = ezkl.compile_circuit(prover_model_path, prover_compiled_model_path, settings_path)
-  assert res == True
-  # now generate the witness file
-#   print('==== Generating Witness ====')
-  witness = ezkl.gen_witness(comb_data_path, prover_compiled_model_path, witness_path)
-  assert os.path.isfile(witness_path)
-  # print(witness["outputs"])
-  settings = json.load(open(settings_path))
-  output_scale = settings['model_output_scales']
-#   print("witness boolean: ", ezkl.vecu64_to_float(witness['outputs'][0][0], output_scale[0]))
-#   for i in range(len(witness['outputs'][1])):
-#     print("witness result", i+1,":", ezkl.vecu64_to_float(witness['outputs'][1][i], output_scale[1]))
+def prover_setup(
+    data_path,
+    col_array,
+    sel_data_path,
+    prover_model,
+    prover_model_path,
+    prover_compiled_model_path,
+    scale,
+    mode,
+    settings_path,
+    vk_path,
+    pk_path,
+):
+    data_tensor_array = process_data(data_path, col_array, sel_data_path)
 
-  # GENERATE A PROOF
-#   print("==== Generating Proof ====")
-  start_time = time.time()
-  res = ezkl.prove(
-        witness_path,
-        prover_compiled_model_path,
-        pk_path,
-        proof_path,
-        "single",
-    )
+    # export onnx file
+    export_onnx(prover_model, data_tensor_array, prover_model_path)
+    # gen + calibrate setting
+    gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
+    verifier_setup(prover_model_path, prover_compiled_model_path, settings_path, vk_path, pk_path)
 
-#   print("proof: " ,res)
-  end_time = time.time()
-  time_gen_prf = end_time -start_time
-#   print(f"Time gen prf: {time_gen_prf} seconds")
-  assert os.path.isfile(proof_path)
-  return time_gen_prf
 
-# ===================================================================================================  
-# ===================================================================================================  
+def prover_gen_proof(
+    prover_model_path,
+    sel_data_path,
+    witness_path,
+    prover_compiled_model_path,
+    settings_path,
+    proof_path,
+    pk_path
+):
+    # print("!@# compiled_model exists?", os.path.isfile(prover_compiled_model_path))
+    res = ezkl.compile_circuit(prover_model_path, prover_compiled_model_path, settings_path)
+    # print("!@# compiled_model exists?", os.path.isfile(prover_compiled_model_path))
+    assert res == True
+    # now generate the witness file
+    # print('==== Generating Witness ====')
+    witness = ezkl.gen_witness(sel_data_path, prover_compiled_model_path, witness_path)
+    assert os.path.isfile(witness_path)
+    # print(witness["outputs"])
+    settings = json.load(open(settings_path))
+    output_scale = settings['model_output_scales']
+    # print("witness boolean: ", ezkl.vecu64_to_float(witness['outputs'][0][0], output_scale[0]))
+    # for i in range(len(witness['outputs'][1])):
+      # print("witness result", i+1,":", ezkl.vecu64_to_float(witness['outputs'][1][i], output_scale[1]))
+
+    # GENERATE A PROOF
+    # print("==== Generating Proof ====")
+    start_time = time.time()
+    res = ezkl.prove(
+          witness_path,
+          prover_compiled_model_path,
+          pk_path,
+          proof_path,
+          "single",
+      )
+
+    # print("proof: " ,res)
+    end_time = time.time()
+    time_gen_prf = end_time -start_time
+    # print(f"Time gen prf: {time_gen_prf} seconds")
+    assert os.path.isfile(proof_path)
+    return time_gen_prf
+
+# ===================================================================================================
+# ===================================================================================================
 
 # return result array
 def verifier_verify(proof_path, settings_path, vk_path):
@@ -142,13 +239,13 @@ def verifier_verify(proof_path, settings_path, vk_path):
 
   proof = json.load(open(proof_path))
   num_inputs = len(settings['model_input_scales'])
-#   print("num_inputs: ", num_inputs)
+  # print("num_inputs: ", num_inputs)
   proof["instances"][0][num_inputs] = ezkl.float_to_vecu64(1.0, output_scale[0])
   json.dump(proof, open(proof_path, 'w'))
 
-#   print("prf instances: ", proof['instances'])
+  # print("prf instances: ", proof['instances'])
 
-#   print("proof boolean: ", ezkl.vecu64_to_float(proof['instances'][0][num_inputs], output_scale[0]))
+  # print("proof boolean: ", ezkl.vecu64_to_float(proof['instances'][0][num_inputs], output_scale[0]))
   assert ezkl.vecu64_to_float(proof['instances'][0][num_inputs], output_scale[0]) == 1, "Prf not set to 1"
   result = []
   for i in range(num_inputs+1, len(proof['instances'][0])):
@@ -166,11 +263,12 @@ def verifier_verify(proof_path, settings_path, vk_path):
 #   print("verified")
   return result
 
-# ===================================================================================================  
-# ===================================================================================================  
+
+# ===================================================================================================
+# ===================================================================================================
 
 # just one dataset at a time.
-def bench_one(data_path_array, model_func, gen_param_func, data_name, scale,mode):
+def bench_one(data_path, col_array, model_func, gen_param_func, data_name, scale,logrow, mode):
     os.makedirs(os.path.dirname('shared/'), exist_ok=True)
     os.makedirs(os.path.dirname('prover/'), exist_ok=True)
     verifier_model_path = os.path.join('shared/verifier.onnx')
@@ -181,41 +279,37 @@ def bench_one(data_path_array, model_func, gen_param_func, data_name, scale,mode
     vk_path = os.path.join('shared/test.vk')
     proof_path = os.path.join('shared/test.pf')
     settings_path = os.path.join('shared/settings.json')
+    srs_path = os.path.join('shared/kzg.srs')
     witness_path = os.path.join('prover/witness.json')
-
     # this is private to prover since it contains actual data
-    comb_data_path = os.path.join('prover/comb_data.json')
+    sel_data_path = os.path.join('prover/sel_data.json')
+    # this is just dummy random value
+    sel_dummy_data_path = os.path.join('shared/sel_dummy_data.json')
+    dummy_data_path = os.path.join('shared/dummy_data.json')
 
-        
     print("===================================== ", data_name," =====================================")
     # go through each dataset (we have 9 data sets)
-    data_tensor_array=[]
-    dummy_data_tensor_array = []
-    comb_data = []
-    for path in data_path_array:
-        data = np.array(json.loads(open(path, "r").read())["input_data"][0])
-        data_tensor_array.append(torch.reshape(torch.tensor(data), (1, len(data),1 )))
-        comb_data.append(data.tolist())
-
-        # create dummy part, not need to save dummy data part
-        dummy_data = np.round(np.random.uniform(1,10,len(data)),1)
-        # dummy_data = np.round(np.random.uniform(10,100,len(data)),0)*10
-        dummy_data_tensor_array.append(torch.reshape(torch.tensor(dummy_data), (1, len(dummy_data),1 )))
-    json.dump(dict(input_data = comb_data), open(comb_data_path, 'w' ))
+    create_dummy(data_path, dummy_data_path)
+    dummy_data_tensor_array = process_data(dummy_data_path, col_array, sel_dummy_data_path)
 
     # verifier_define_calculation
     export_onnx(model_func(gen_param_func(dummy_data_tensor_array)),dummy_data_tensor_array, verifier_model_path)
 
     # prover_gen_settings
+    data_tensor_array = process_data(data_path,col_array,  sel_data_path)
     # export onnx file
     export_onnx(model_func(gen_param_func(data_tensor_array)), data_tensor_array, prover_model_path)
     # gen + calibrate setting
-    gen_settings(comb_data_path, prover_model_path, scale, mode, settings_path)
-    f_setting = open(settings_path, "r")
-    print("setting: ", f_setting.read())
+    gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
+    f_setting = json.loads(open(settings_path, "r").read())
+    print("og setting: ", f_setting)
+    # f_setting['run_args']['logrows']=math.ceil(math.log(f_setting['num_rows'],2))
+    f_setting['run_args']['logrows']=logrow
+    json.dump(f_setting, open(settings_path, "w"), indent=2)  # You can adjust the 'indent' parameter for formatting
+    print("logrow cal settings: ",json.loads(open(settings_path, "r").read()) )
     verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path )
 
-    gen_prf_time = prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path)
+    gen_prf_time = prover_gen_proof(prover_model_path, sel_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path)
 
     result= verifier_verify(proof_path, settings_path, vk_path)
 
@@ -224,84 +318,5 @@ def bench_one(data_path_array, model_func, gen_param_func, data_name, scale,mode
     print("gen prf time: ", gen_prf_time)
     print("Theory result: ", gen_param_func(data_tensor_array)[0])
     print("Our result: ", result)
+    return gen_prf_time
 
-
-# ===================================================================================================  
-# ===================================================================================================  
-
-# to run bench of all datasets at the same time--> mostly 9 dataset
-def bench_all(data_path_nested_array, model_func, gen_param_func, scale):
-    os.makedirs(os.path.dirname('shared/'), exist_ok=True)
-    os.makedirs(os.path.dirname('prover/'), exist_ok=True)
-    verifier_model_path = os.path.join('shared/verifier.onnx')
-    prover_model_path = os.path.join('prover/prover.onnx')
-    verifier_compiled_model_path = os.path.join('shared/verifier.compiled')
-    prover_compiled_model_path = os.path.join('prover/prover.compiled')
-    pk_path = os.path.join('shared/test.pk')
-    vk_path = os.path.join('shared/test.vk')
-    proof_path = os.path.join('shared/test.pf')
-    settings_path = os.path.join('shared/settings.json')
-    witness_path = os.path.join('prover/witness.json')
-
-    # this is private to prover since it contains actual data
-    comb_data_path = os.path.join('prover/comb_data.json')
-
-    for dataset_index in range(len(data_path_nested_array)):
-        data_path_array = data_path_nested_array[dataset_index]
-        match dataset_index:
-            case 0:
-                data_name = " data 00, ~50 small values "
-            case 1:
-                data_name = " data 01, ~50 medium values "
-            case 2:
-                data_name = " data 02, ~50 large values "
-            case 3:
-                data_name = " data 10, ~300 small values "
-            case 4:
-                data_name = " data 11, ~300 medium values "
-            case 5:
-                data_name = " data 12, ~300 large values "
-            case 6:
-                data_name = " data 20, ~1000 small values "
-            case 7:
-                data_name = " data 21, ~1000 medium values "
-            case 8:
-                data_name = " data 22, ~1000 large values "
-        print("Test:", data_name," ===============================================")
-        # go through each dataset (we have 9 data sets)
-        data_tensor_array=[]
-        dummy_data_tensor_array = []
-        comb_data = []
-        for path in data_path_array:
-            data = np.array(json.loads(open(path, "r").read())["input_data"][0])
-            data_tensor_array.append(torch.reshape(torch.tensor(data), (1, len(data),1 )))
-            comb_data.append(data.tolist())
-
-            # create dummy part, not need to save dummy data part
-            dummy_data = np.round(np.random.uniform(1,10,len(data)),1)
-            dummy_data_tensor_array.append(torch.reshape(torch.tensor(dummy_data), (1, len(dummy_data),1 )))
-        json.dump(dict(input_data = comb_data), open(comb_data_path, 'w' ))
-
-        # verifier_define_calculation
-        export_onnx(model_func(gen_param_func(dummy_data_tensor_array)),dummy_data_tensor_array, verifier_model_path)
-
-        # prover_gen_settings
-        # export onnx file
-        export_onnx(model_func(gen_param_func(data_tensor_array)), data_tensor_array, prover_model_path)
-        # gen + calibrate setting
-        gen_settings(comb_data_path, prover_model_path, [scale[dataset_index]], "resources", settings_path)
-        f_setting = open(settings_path, "r")
-        print("setting: ", f_setting.read())
-
-        verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path )
-
-        gen_prf_time = prover_gen_proof(prover_model_path, comb_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path)
-
-        result= verifier_verify(proof_path, settings_path, vk_path)
-
-        # f_setting = open(settings_path, "r")
-        # print("setting: ", f_setting.read())
-        print("gen prf time: ", gen_prf_time)
-        print("Theory result: ", gen_param_func(data_tensor_array)[0])
-        print("Our result: ", result)
-        print("====================================================================")
