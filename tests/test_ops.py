@@ -1,7 +1,4 @@
-import json
 from typing import Type, Callable
-from dataclasses import dataclass
-from pathlib import Path
 import statistics
 
 import pytest
@@ -32,5 +29,3 @@ def op_to_model(op: Operation) -> Type[IModel]:
         def forward(self, x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             return op.ezkl(x), op.result
     return Model
-
-

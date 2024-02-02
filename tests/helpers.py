@@ -1,5 +1,5 @@
 import json
-from typing import Type, Sequence
+from typing import Type, Sequence, Optional
 from pathlib import Path
 
 import torch
@@ -8,7 +8,24 @@ from zkstats.core import prover_gen_settings, verifier_setup, prover_gen_proof, 
 from zkstats.computation import IModel, IsResultPrecise
 
 
-def compute(basepath: Path, data: list[torch.Tensor], model: Type[IModel], scales: Sequence[int]) -> IsResultPrecise:
+def data_to_file(data_path: Path, data: list[torch.Tensor]) -> dict[str, list]:
+    column_names = [f"columns_{i}" for i in range(len(data))]
+    column_to_data = {
+        column: d.tolist()
+        for column, d in zip(column_names, data)
+    }
+    with open(data_path, "w") as f:
+        json.dump(column_to_data, f)
+    return column_to_data
+
+
+def compute(
+    basepath: Path,
+    data: list[torch.Tensor],
+    model: Type[IModel],
+    scales: Sequence[int],
+    selected_columns_params: Optional[list[str]] = None,
+) -> None:
     sel_data_path = basepath / "comb_data.json"
     model_path = basepath / "model.onnx"
     settings_path = basepath / "settings.json"
@@ -19,19 +36,18 @@ def compute(basepath: Path, data: list[torch.Tensor], model: Type[IModel], scale
     vk_path = basepath / "model.vk"
     data_path = basepath / "data.json"
 
-    column_names = [f"columns_{i}" for i in range(len(data))]
-    column_to_data = {
-        column: d.tolist()
-        for column, d in zip(column_names, data)
-    }
-    with open(data_path, "w") as f:
-        json.dump(column_to_data, f)
+    column_to_data = data_to_file(data_path, data)
+    # If selected_columns_params is None, select all columns
+    if selected_columns_params is None:
+        selected_columns = list(column_to_data.keys())
+    else:
+        selected_columns = selected_columns_params
 
     commitment_maps = get_data_commitment_maps(data_path, scales)
 
     prover_gen_settings(
         data_path=data_path,
-        col_array=list(column_to_data.keys()),
+        col_array=selected_columns,
         sel_data_path=str(sel_data_path),
         prover_model=model,
         prover_model_path=str(model_path),
@@ -59,6 +75,6 @@ def compute(basepath: Path, data: list[torch.Tensor], model: Type[IModel], scale
         str(proof_path),
         str(settings_path),
         str(vk_path),
-        column_names,
+        selected_columns,
         commitment_maps,
     )
