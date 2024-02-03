@@ -5,7 +5,7 @@ from pathlib import Path
 import torch
 
 from zkstats.core import prover_gen_settings, verifier_setup, prover_gen_proof, verifier_verify, get_data_commitment_maps
-from zkstats.computation import IModel, IsResultPrecise
+from zkstats.computation import IModel
 
 
 def data_to_file(data_path: Path, data: list[torch.Tensor]) -> dict[str, list]:

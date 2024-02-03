@@ -29,7 +29,7 @@ def test_get_data_commitment_maps(tmp_path, column_0, column_1, scales):
 
     assert len(commitment_maps) == len(scales)
     for scale, commitment_map in commitment_maps.items():
-        assert scale in scales
+        assert int(scale) in scales
         assert len(commitment_map) == len(data_json)
         for column_name, commitment_hex in commitment_map.items():
             assert column_name in data_json
@@ -47,7 +47,7 @@ def test_get_data_commitment_maps_hardcoded(tmp_path):
     data_to_file(data_path, [column_0, column_1])
     scales = [2, 3]
     commitment_maps = get_data_commitment_maps(data_path, scales)
-    expected = {2: {'columns_0': '0x28b5eeb5aeee399c8c50c5b323def9a1aec1deee5b9ae193463d4f9b8893a9a3', 'columns_1': '0x0523c85a86dddd810418e8376ce6d9d21b1b7363764c9c31b575b8ffbad82987'}, 3: {'columns_0': '0x0a2906522d3f902ff4a63ee8aed4d2eaec0b14f71c51eb9557bd693a4e7d77ad', 'columns_1': '0x2dac7fee1efb9eb955f52494a26a3fba6d1fa28cc819e598cb0af31a47b29d08'}}
+    expected = {"2": {'columns_0': '0x28b5eeb5aeee399c8c50c5b323def9a1aec1deee5b9ae193463d4f9b8893a9a3', 'columns_1': '0x0523c85a86dddd810418e8376ce6d9d21b1b7363764c9c31b575b8ffbad82987'}, "3": {'columns_0': '0x0a2906522d3f902ff4a63ee8aed4d2eaec0b14f71c51eb9557bd693a4e7d77ad', 'columns_1': '0x2dac7fee1efb9eb955f52494a26a3fba6d1fa28cc819e598cb0af31a47b29d08'}}
     assert commitment_maps == expected
 
 

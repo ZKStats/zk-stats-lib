@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from typing import Type
@@ -6,8 +7,8 @@ import importlib.util
 import click
 import torch
 
-from .core import prover_gen_proof, prover_gen_settings, verifier_setup, verifier_verify, gen_data_commitment
-from .computation import computation_to_model, State
+from .core import prover_gen_proof, prover_gen_settings, verifier_setup, verifier_verify, get_data_commitment_maps
+from .computation import computation_to_model
 
 cwd = os.getcwd()
 # TODO: Should make this configurable
@@ -21,6 +22,9 @@ proof_path = f"{output_dir}/model.pf"
 settings_path = f"{output_dir}/settings.json"
 witness_path = f"{output_dir}/witness.json"
 comb_data_path = f"{output_dir}/comb_data.json"
+commitment_maps_path = f"{output_dir}/commitment_maps.json"
+
+default_possible_scales = list(range(20))
 
 
 @click.group()
@@ -34,8 +38,14 @@ def cli():
 def prove(computation_path: str, data_path: str):
     computation = load_computation(computation_path)
     _, model = computation_to_model(computation)
+    commitment_maps = get_data_commitment_maps(data_path, default_possible_scales)
+    with open(commitment_maps_path, "w") as f:
+        json.dump(commitment_maps, f)
+    # By default select all columns
+    selected_columns = list(commitment_maps[str(default_possible_scales[0])].keys())
     prover_gen_settings(
-        [data_path],
+        data_path,
+        selected_columns,
         comb_data_path,
         model,
         model_onnx_path,
@@ -61,28 +71,33 @@ def prove(computation_path: str, data_path: str):
         pk_path,
     )
     print("Finished generating proof")
-    verifier_verify(proof_path, settings_path, vk_path)
+    verifier_verify(proof_path, settings_path, vk_path, selected_columns, commitment_maps)
     print("Proof path:", proof_path)
     print("Settings path:", settings_path)
     print("Verification key path:", vk_path)
+    print("Commitment maps path:", commitment_maps_path)
 
 
 @click.command()
-@click.argument('proof_path')
-@click.argument('settings_path')
-@click.argument('vk_path')
-def verify(proof_path: str, settings_path: str, vk_path: str):
-    verifier_verify(proof_path, settings_path, vk_path)
+def verify():
+    # Load commitment maps
+    with open(commitment_maps_path, "r") as f:
+        commitment_maps = json.load(f)
+    # By default select all columns
+    selected_columns = list(commitment_maps[str(default_possible_scales[0])].keys())
+    verifier_verify(proof_path, settings_path, vk_path, selected_columns, commitment_maps)
 
 
 @click.command()
 @click.argument('data_path')
-def commit(data_path: str):
+@click.argument('scale_str')
+def commit(data_path: str, scale_str: str):
     """
     Now we just assume the data is a list of floats. We should be able to
     """
-    commitment = gen_data_commitment(data_path)
-    print("Commitment:", hex(commitment))
+    scale = int(scale_str)
+    commitment_maps = get_data_commitment_maps(data_path, [scale])
+    print("Commitment maps:", commitment_maps)
 
 
 def main():

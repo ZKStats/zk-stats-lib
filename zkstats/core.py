@@ -1,6 +1,5 @@
 from typing import Type, Sequence, Mapping, Union, Literal
 import torch
-from torch import Tensor
 import ezkl
 import os
 import numpy as np
@@ -52,7 +51,7 @@ def prover_gen_settings(
     mode: Union[Literal["resources"], Literal["accuracy"]],
     settings_path: str,
 ):
-    data_tensor_array = _process_data(data_path,col_array,  sel_data_path)
+    data_tensor_array = _process_data(data_path, col_array, sel_data_path)
 
     # export onnx file
     _export_onnx(prover_model, data_tensor_array, prover_model_path)
@@ -151,11 +150,11 @@ TCommitmentMap = Mapping[str, str]
 #     },
 #     ...
 # }
-TCommitmentMaps = Mapping[int, TCommitmentMap]
+TCommitmentMaps = Mapping[str, TCommitmentMap]
 
 # ===================================================================================================
 # ===================================================================================================
-def verifier_verify(proof_path: str, settings_path: str, vk_path: str, expected_columns: Sequence[str], commitment_maps: TCommitmentMaps):
+def verifier_verify(proof_path: str, settings_path: str, vk_path: str, selected_columns: Sequence[str], commitment_maps: TCommitmentMaps) -> torch.Tensor:
   """
   :param proof_path: path to the proof file
   :param settings_path: path to the settings file
@@ -192,13 +191,13 @@ def verifier_verify(proof_path: str, settings_path: str, vk_path: str, expected_
 
   # 2.1 Check input commitments
   # All inputs are hashed so are commitments
-  assert len_inputs == len(expected_columns)
+  assert len_inputs == len(selected_columns), f"lengths mismatch: {len_inputs=}, {len(selected_columns)=}"
   # Sanity check
   # Check each commitment is correct
-  for i, (actual_commitment, column_name) in enumerate(zip(inputs, expected_columns)):
+  for i, (actual_commitment, column_name) in enumerate(zip(inputs, selected_columns)):
      actual_commitment_str = ezkl.vecu64_to_felt(actual_commitment)
      input_scale = input_scales[i]
-     expected_commitment = commitment_maps[input_scale][column_name]
+     expected_commitment = commitment_maps[str(input_scale)][column_name]
      assert actual_commitment_str == expected_commitment, f"commitment mismatch: {i=}, {actual_commitment_str=}, {expected_commitment=}"
 
   # 2.2 Check output is correct
@@ -220,7 +219,7 @@ def get_data_commitment_maps(data_path: str, scales: Sequence[int]) -> TCommitme
   with open(data_path) as f:
     data_json = json.load(f)
   return {
-    scale: {
+    str(scale): {
       k: _get_commitment_for_column(v, scale) for k, v in data_json.items()
     } for scale in scales
   }
@@ -230,7 +229,7 @@ def get_data_commitment_maps(data_path: str, scales: Sequence[int]) -> TCommitme
 # Private functions
 # ===================================================================================================
 
-def _export_onnx(model: Type[IModel], data_tensor_array: list[Tensor], model_loc: str):
+def _export_onnx(model: Type[IModel], data_tensor_array: list[torch.Tensor], model_loc: str) -> None:
   circuit = model()
   try:
     circuit.preprocess(data_tensor_array)
@@ -281,9 +280,9 @@ def _gen_settings(
   # Set input to be Poseidon Hash, and param of computation graph to be public
   # Poseidon is not homomorphic additive, maybe consider Pedersens or Dory commitment.
   gip_run_args = ezkl.PyRunArgs()
-  gip_run_args.input_visibility = "hashed"  # matrix and generalized inverse commitments
-  gip_run_args.output_visibility = "public"   # no parameters used
-  gip_run_args.param_visibility = "private" # should be Tensor(True)--> to enforce arbitrary data in w
+  gip_run_args.input_visibility = "hashed"  # one commitment (values hashed) for each column
+  gip_run_args.param_visibility = "private"  # no parameters used
+  gip_run_args.output_visibility = "public"  # should be `(torch.Tensor(1.0), output)`
 
  # generate settings
   ezkl.gen_settings(onnx_filename, settings_filename, py_run_args=gip_run_args)
@@ -307,7 +306,7 @@ def _process_data(
     data_path: str,
     col_array: list[str],
     sel_data_path: list[str],
-  ) -> list[Tensor]:
+  ) -> list[torch.Tensor]:
     data_tensor_array=[]
     sel_data = []
     data_onefile = json.loads(open(data_path, "r").read())
