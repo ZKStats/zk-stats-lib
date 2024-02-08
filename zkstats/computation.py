@@ -41,7 +41,7 @@ class State:
 
     def _call_op(self, x: torch.Tensor, op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
         if self.current_op_index is None:
-            op = op_type.create(x, self.error)
+            op = op_type.create([x], self.error)
             self.ops.append(op)
             return op.result
         else:
@@ -62,7 +62,7 @@ class State:
 
             # Push the ezkl condition, which is checked only in the last operation
             def is_precise() -> IsResultPrecise:
-                return op.ezkl(x)
+                return op.ezkl([x])
             self.bools.append(is_precise)
 
             # If this is the last operation, aggregate all `is_precise` in `self.bools`, and return (is_precise_aggregated, result)

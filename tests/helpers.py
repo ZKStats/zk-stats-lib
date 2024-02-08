@@ -8,6 +8,9 @@ from zkstats.core import prover_gen_settings, verifier_setup, prover_gen_proof, 
 from zkstats.computation import IModel
 
 
+DEFAULT_POSSIBLE_SCALES = list(range(20))
+
+
 def data_to_file(data_path: Path, data: list[torch.Tensor]) -> dict[str, list]:
     column_names = [f"columns_{i}" for i in range(len(data))]
     column_to_data = {
@@ -23,7 +26,7 @@ def compute(
     basepath: Path,
     data: list[torch.Tensor],
     model: Type[IModel],
-    scales: Sequence[int],
+    scales_params: Optional[Sequence[int]] = None,
     selected_columns_params: Optional[list[str]] = None,
 ) -> None:
     sel_data_path = basepath / "comb_data.json"
@@ -43,7 +46,16 @@ def compute(
     else:
         selected_columns = selected_columns_params
 
-    commitment_maps = get_data_commitment_maps(data_path, scales)
+    scales: Sequence[int] | str
+    scales_for_commitments: Sequence[int]
+    if scales_params is None:
+        scales = 'default'
+        scales_for_commitments = DEFAULT_POSSIBLE_SCALES
+    else:
+        scales = scales_params
+        scales_for_commitments = scales_params
+
+    commitment_maps = get_data_commitment_maps(data_path, scales_for_commitments)
 
     prover_gen_settings(
         data_path=data_path,
