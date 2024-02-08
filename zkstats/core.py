@@ -184,8 +184,6 @@ def verifier_verify(proof_path: str, settings_path: str, vk_path: str, selected_
   outputs = proof_instance[len(input_scales):]
   len_inputs = len(inputs)
   len_outputs = len(outputs)
-  # Output should always be a tuple of 2 elements
-  assert len_outputs == 2, f"outputs should be a tuple of 2 elements, but got {len_outputs=}"
   # `instances` = input commitments + params (which is 0 in our case) + output
   assert len(proof_instance) == len_inputs + len_outputs, f"lengths mismatch: {len(proof_instance)=}, {len_inputs=}, {len_outputs=}"
 
