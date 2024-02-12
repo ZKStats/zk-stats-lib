@@ -58,10 +58,10 @@ def nested_computation(state: State, args: list[torch.Tensor]):
 
 @pytest.mark.parametrize(
     "error",
-    # TODO: if the error is larger like 0.1, we get
+    # FIXME: if the error is larger like 0.1, we get
     # "RuntimeError: Failed to run verify: The constraint system is not satisfied"
     # Should investigate why
-    [0.05],
+    [0.08],
 )
 def test_nested_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, column_2: torch.Tensor, error, scales):
     state, model = computation_to_model(nested_computation, error)
