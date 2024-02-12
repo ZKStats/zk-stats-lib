@@ -18,5 +18,10 @@ def column_1():
 
 
 @pytest.fixture
+def column_2():
+    return torch.tensor([1.3, 4.3, 1.1, 2.2, 8.8, 7.0, 2.0, 3.3])
+
+
+@pytest.fixture
 def scales():
-    return [6]
+    return [4]

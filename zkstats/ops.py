@@ -154,10 +154,6 @@ class Mode(Operation):
         return torch.sum(_result) == size
 
 
-
-# TODO: add the rest of the operations
-
-
 class PStdev(Operation):
     def __init__(self, x: torch.Tensor, error: float):
         x_1d = to_1d(x)
@@ -307,3 +303,31 @@ class Correlation(Operation):
         bool3, y_std = stdev(y, self.y_std, self.y_mean, self.error)
         bool4 = torch.abs(cov - self.result*x_std*y_std)<=self.error*cov
         return torch.logical_and(torch.logical_and(bool1, bool2),torch.logical_and(bool3, bool4))
+
+
+def stacked_x(args: list[float]):
+    return np.column_stack((*args, np.ones_like(args[0])))
+
+
+class Regression(Operation):
+    def __init__(self, xs: list[torch.Tensor], y: torch.Tensor, error: float):
+        x_1ds = [to_1d(i).tolist() for i in xs]
+        y_1d = to_1d(y).tolist()
+
+        x_one = stacked_x(x_1ds)
+        result_1d = np.matmul(np.matmul(np.linalg.inv(np.matmul(x_one.transpose(), x_one)), x_one.transpose()), y_1d)
+        result = torch.tensor(result_1d).reshape(1, -1, 1)
+        super().__init__(result, error)
+
+    @classmethod
+    def create(cls, args: list[torch.Tensor], error: float) -> 'Regression':
+        xs = args[:-1]
+        y = args[-1]
+        return cls(xs, y, error)
+
+    def ezkl(self, args: list[torch.Tensor]) -> IsResultPrecise:
+         # infer y from the last parameter
+        y = args[-1]
+        x_one = torch.cat((*args[:-1], torch.ones_like(args[0])), dim=2)
+        x_t = torch.transpose(x_one, 1, 2)
+        return torch.sum(torch.abs(x_t @ x_one @ self.result - x_t @ y)) <= self.error * torch.sum(torch.abs(x_t @ y))

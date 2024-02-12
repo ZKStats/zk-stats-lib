@@ -90,3 +90,12 @@ def compute(
         selected_columns,
         commitment_maps,
     )
+
+
+# Error tolerance between zkstats python implementation and python statistics module
+ERROR_ZKSTATS_STATISTICS = 0.0001
+
+
+def assert_result(expected_result: float, circuit_result: float):
+    assert abs(expected_result - circuit_result) < ERROR_ZKSTATS_STATISTICS * expected_result, f"{expected_result=} != {circuit_result=}, {ERROR_ZKSTATS_STATISTICS=}"
+

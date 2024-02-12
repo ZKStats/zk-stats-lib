@@ -4,7 +4,22 @@ from typing import Callable, Type, Optional, Union
 import torch
 from torch import nn
 
-from .ops import Operation, Mean, Median, IsResultPrecise
+from .ops import (
+    Operation,
+    Mean,
+    Median,
+    GeometricMean,
+    HarmonicMean,
+    Mode,
+    PStdev,
+    PVariance,
+    Stdev,
+    Variance,
+    Covariance,
+    Correlation,
+    Regression,
+    IsResultPrecise,
+)
 
 
 DEFAULT_ERROR = 0.01
@@ -31,17 +46,45 @@ class State:
     def set_ready_for_exporting_onnx(self) -> None:
         self.current_op_index = 0
 
-    def mean(self, X: torch.Tensor) -> tuple[IsResultPrecise, torch.Tensor]:
-        return self._call_op(X, Mean)
+    def mean(self, x: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x], Mean)
 
-    def median(self, X: torch.Tensor) -> tuple[IsResultPrecise, torch.Tensor]:
-        return self._call_op(X, Median)
+    def median(self, x: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x], Median)
 
-    # TODO: add the rest of the operations
+    def geometric_mean(self, x: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x], GeometricMean)
 
-    def _call_op(self, x: torch.Tensor, op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
+    def harmonic_mean(self, x: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x], HarmonicMean)
+
+    def mode(self, x: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x], Mode)
+
+    def pstdev(self, x: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x], PStdev)
+
+    def pvariance(self, x: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x], PVariance)
+
+    def stdev(self, x: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x], Stdev)
+
+    def variance(self, x: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x], Variance)
+
+    def covariance(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x, y], Covariance)
+
+    def correlation(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x, y], Correlation)
+
+    def regression(self, xs: list[torch.Tensor], y: torch.Tensor) -> torch.Tensor:
+        return self._call_op([*xs, y], Regression)
+
+    def _call_op(self, x: list[torch.Tensor], op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
         if self.current_op_index is None:
-            op = op_type.create([x], self.error)
+            op = op_type.create(x, self.error)
             self.ops.append(op)
             return op.result
         else:
@@ -62,7 +105,7 @@ class State:
 
             # Push the ezkl condition, which is checked only in the last operation
             def is_precise() -> IsResultPrecise:
-                return op.ezkl([x])
+                return op.ezkl(x)
             self.bools.append(is_precise)
 
             # If this is the last operation, aggregate all `is_precise` in `self.bools`, and return (is_precise_aggregated, result)
