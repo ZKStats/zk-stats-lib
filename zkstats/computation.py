@@ -79,8 +79,8 @@ class State:
     def correlation(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return self._call_op([x, y], Correlation)
 
-    def regression(self, xs: list[torch.Tensor], y: torch.Tensor) -> torch.Tensor:
-        return self._call_op([*xs, y], Regression)
+    def linear_regression(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return self._call_op([x, y], Regression)
 
     def _call_op(self, x: list[torch.Tensor], op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
         if self.current_op_index is None:

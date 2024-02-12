@@ -93,7 +93,6 @@ class GeometricMean(Operation):
     def create(cls, x: list[torch.Tensor], error: float) -> 'GeometricMean':
         x_1d = to_1d(x[0])
         result = torch.exp(torch.mean(torch.log(x_1d)))
-        print(f"!@# GeometricMean.create: {result=}")
         return cls(result, error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
