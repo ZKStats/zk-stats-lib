@@ -10,7 +10,7 @@ IsResultPrecise = torch.Tensor
 
 class Operation(ABC):
     def __init__(self, result: torch.Tensor, error: float):
-        self.result = result
+        self.result = torch.nn.Parameter(data=result, requires_grad=False)
         self.error = error
 
     @abstractclassmethod
@@ -54,8 +54,8 @@ class Median(Operation):
         super().__init__(torch.tensor(np.median(x_1d)), error)
         sorted_x = np.sort(x_1d)
         len_x = len(x_1d)
-        self.lower = torch.tensor(sorted_x[int(len_x/2)-1])
-        self.upper = torch.tensor(sorted_x[int(len_x/2)])
+        self.lower = torch.nn.Parameter(data=torch.tensor(sorted_x[int(len_x/2)-1]), requires_grad=False)
+        self.upper = torch.nn.Parameter(data=torch.tensor(sorted_x[int(len_x/2)]), requires_grad=False)
 
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Median':
@@ -156,7 +156,7 @@ class Mode(Operation):
 class PStdev(Operation):
     def __init__(self, x: torch.Tensor, error: float):
         x_1d = to_1d(x)
-        self.data_mean = torch.mean(x_1d)
+        self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
         result = torch.sqrt(torch.var(x_1d, correction = 0))
         super().__init__(result, error)
 
@@ -176,7 +176,7 @@ class PStdev(Operation):
 class PVariance(Operation):
     def __init__(self, x: torch.Tensor, error: float):
         x_1d = to_1d(x)
-        self.data_mean = torch.mean(x_1d)
+        self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
         result = torch.var(x_1d, correction = 0)
         super().__init__(result, error)
 
@@ -196,7 +196,7 @@ class PVariance(Operation):
 class Stdev(Operation):
     def __init__(self, x: torch.Tensor, error: float):
         x_1d = to_1d(x)
-        self.data_mean = torch.mean(x_1d)
+        self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
         result = torch.sqrt(torch.var(x_1d, correction = 1))
         super().__init__(result, error)
 
@@ -219,7 +219,7 @@ class Stdev(Operation):
 class Variance(Operation):
     def __init__(self, x: torch.Tensor, error: float):
         x_1d = to_1d(x)
-        self.data_mean = torch.mean(x_1d)
+        self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
         result = torch.var(x_1d, correction = 1)
         super().__init__(result, error)
 
@@ -242,8 +242,8 @@ class Covariance(Operation):
         y_1d = to_1d(y)
         x_1d_list = x_1d.tolist()
         y_1d_list = y_1d.tolist()
-        self.x_mean = torch.tensor(statistics.mean(x_1d_list))
-        self.y_mean = torch.tensor(statistics.mean(y_1d_list))
+        self.x_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(x_1d_list)), requires_grad=False)
+        self.y_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(y_1d_list)), requires_grad=False)
         result = torch.tensor(statistics.covariance(x_1d_list, y_1d_list))
         super().__init__(result, error)
 
@@ -283,11 +283,11 @@ class Correlation(Operation):
         y_1d = to_1d(y)
         x_1d_list = x_1d.tolist()
         y_1d_list = y_1d.tolist()
-        self.x_mean = torch.mean(x_1d)
-        self.y_mean = torch.mean(y_1d)
-        self.x_std = torch.sqrt(torch.var(x_1d, correction = 1))
-        self.y_std = torch.sqrt(torch.var(y_1d, correction = 1))
-        self.cov = torch.tensor(statistics.covariance(x_1d_list, y_1d_list))
+        self.x_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
+        self.y_mean = torch.nn.Parameter(data=torch.mean(y_1d), requires_grad=False)
+        self.x_std = torch.nn.Parameter(data=torch.sqrt(torch.var(x_1d, correction = 1)), requires_grad=False)
+        self.y_std = torch.nn.Parameter(data=torch.sqrt(torch.var(y_1d, correction = 1)), requires_grad=False)
+        self.cov = torch.nn.Parameter(data=torch.tensor(statistics.covariance(x_1d_list, y_1d_list)), requires_grad=False)
         result = torch.tensor(statistics.correlation(x_1d_list, y_1d_list))
         super().__init__(result, error)
 
