@@ -10,7 +10,7 @@ IsResultPrecise = torch.Tensor
 
 class Operation(ABC):
     def __init__(self, result: torch.Tensor, error: float):
-        self.result = result
+        self.result = torch.nn.Parameter(data=result, requires_grad=False)
         self.error = error
 
     @abstractclassmethod
@@ -56,6 +56,7 @@ class Median(Operation):
         len_x = len(x_1d)
         self.lower = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)-1], dtype = torch.float32), requires_grad=False)
         self.upper = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)], dtype = torch.float32), requires_grad=False)
+
 
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Median':
@@ -241,9 +242,11 @@ class Covariance(Operation):
         y_1d = to_1d(y)
         x_1d_list = x_1d.tolist()
         y_1d_list = y_1d.tolist()
+
         self.x_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(x_1d_list), dtype = torch.float32), requires_grad=False)
         self.y_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(y_1d_list), dtype = torch.float32), requires_grad=False)
         result = torch.tensor(statistics.covariance(x_1d_list, y_1d_list), dtype = torch.float32)
+
         super().__init__(result, error)
 
     @classmethod
@@ -288,6 +291,7 @@ class Correlation(Operation):
         self.y_std = torch.nn.Parameter(data=torch.sqrt(torch.var(y_1d, correction = 1)), requires_grad=False)
         self.cov = torch.nn.Parameter(data=torch.tensor(statistics.covariance(x_1d_list, y_1d_list), dtype = torch.float32), requires_grad=False)
         result = torch.tensor(statistics.correlation(x_1d_list, y_1d_list), dtype = torch.float32)
+
         super().__init__(result, error)
 
     @classmethod
