@@ -311,7 +311,7 @@ def _process_data(
 
     for col in col_array:
       data = data_onefile[col]
-      data_tensor = torch.tensor(data, dtype = torch.float64)
+      data_tensor = torch.tensor(data, dtype = torch.float32)
       data_tensor_array.append(torch.reshape(data_tensor, (1,-1,1)))
       sel_data.append(data)
     # Serialize data into file:

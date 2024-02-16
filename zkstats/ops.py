@@ -54,8 +54,9 @@ class Median(Operation):
         super().__init__(torch.tensor(np.median(x_1d)), error)
         sorted_x = np.sort(x_1d)
         len_x = len(x_1d)
-        self.lower = torch.nn.Parameter(data=torch.tensor(sorted_x[int(len_x/2)-1]), requires_grad=False)
-        self.upper = torch.nn.Parameter(data=torch.tensor(sorted_x[int(len_x/2)]), requires_grad=False)
+        self.lower = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)-1], dtype = torch.float32), requires_grad=False)
+        self.upper = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)], dtype = torch.float32), requires_grad=False)
+
 
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Median':
@@ -64,21 +65,21 @@ class Median(Operation):
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
         # since within 1%, we regard as same value
-        count_less = torch.sum((x < (1-self.error)*self.result).double())
-        count_equal = torch.sum((torch.abs(x-self.result)<=torch.abs(self.error*self.result)).double())
-        size = x.size()[1]
-        half_len = torch.floor(torch.div(size, 2))
-
+        count_less = torch.sum((x < self.result).float())
+        count_equal = torch.sum((x==self.result).float())
+        len = x.size()[1]
+        half_len = torch.floor(torch.div(len, 2))
+        
         # not support modulo yet
-        less_cons = count_less<half_len+2*(size/2 - torch.floor(size/2))
+        less_cons = count_less<half_len+2*(len/2 - torch.floor(len/2))
         more_cons = count_less+count_equal>half_len
 
         # For count_equal == 0
-        lower_exist = torch.sum((torch.abs(x-self.lower)<=torch.abs(self.error*self.lower)).double())>0
-        lower_cons = torch.sum((x>(1+self.error)*self.lower).double())==half_len
-        upper_exist = torch.sum((torch.abs(x-self.upper)<=torch.abs(self.error*self.upper)).double())>0
-        upper_cons = torch.sum((x<(1-self.error)*self.upper).double())==half_len
-        bound = count_less==half_len
+        lower_exist = torch.sum((x==self.lower).float())>0
+        lower_cons = torch.sum((x>self.lower).float())==half_len
+        upper_exist = torch.sum((x==self.upper).float())>0
+        upper_cons = torch.sum((x<self.upper).float())==half_len
+        bound = count_less== half_len
         # 0.02 since 2*0.01
         bound_avg = (torch.abs(self.lower+self.upper-2*self.result)<=torch.abs(2*self.error*self.result))
 
@@ -86,7 +87,6 @@ class Median(Operation):
         median_out_cons = torch.logical_and(torch.logical_and(bound, bound_avg), torch.logical_and(torch.logical_and(lower_cons, upper_cons), torch.logical_and(lower_exist, upper_exist)))
 
         return torch.where(count_equal==0, median_out_cons, median_in_cons)
-
 
 class GeometricMean(Operation):
     @classmethod
@@ -138,18 +138,21 @@ class Mode(Operation):
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Mode':
         x_1d = to_1d(x[0])
-        result = torch.tensor(mode_within(x_1d, error))
+        # FIXME: Now hardcode 0.01 to be acceptable range of dataset that
+        # we want to consider it the same, totally different from our result_error
+        # This value doesn't depend on any scale, but on the dataset itself.
+        result = torch.tensor(mode_within(x_1d, 0.01))
         return cls(result, error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         # Assume x is [1, n, 1]
         x = x[0]
         size = x.size()[1]
-        count_equal = torch.sum((torch.abs(x-self.result)<=torch.abs(self.error*self.result)).double())
+        count_equal = torch.sum((torch.abs(x-self.result)<=torch.abs(self.error*self.result)).float())
         _result = torch.tensor([
-            torch.sum((torch.abs(x-ele[0])<=torch.abs(self.error*ele[0])).double())<= count_equal
+            torch.sum((torch.abs(x-ele[0])<=torch.abs(self.error*ele[0])).float())<= count_equal
             for ele in x[0]
-        ])
+        ], dtype = torch.float32)
         return torch.sum(_result) == size
 
 
@@ -207,9 +210,6 @@ class Stdev(Operation):
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
         size = x.size()[1]
-        # x_mean_cons = torch.abs(torch.sum(X)-X.size()[1]*(self.data_mean))<=torch.abs(0.01*X.size()[1]*self.data_mean)
-        # return (torch.logical_and(torch.abs(torch.sum((X-self.data_mean)*(X-self.data_mean))-self.w*self.w*(X.size()[1]-1))<=torch.abs(0.02*self.w*self.w*(X.size()[1]-1)),x_mean_cons),self.w)
-
         x_mean_cons = torch.abs(torch.sum(x)-size*(self.data_mean))<=torch.abs(self.error*size*self.data_mean)
         return torch.logical_and(
             torch.abs(torch.sum((x-self.data_mean)*(x-self.data_mean))-self.result*self.result*(size - 1))<=torch.abs(2*self.error*self.result*self.result*(size - 1)), x_mean_cons
@@ -242,9 +242,11 @@ class Covariance(Operation):
         y_1d = to_1d(y)
         x_1d_list = x_1d.tolist()
         y_1d_list = y_1d.tolist()
-        self.x_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(x_1d_list)), requires_grad=False)
-        self.y_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(y_1d_list)), requires_grad=False)
-        result = torch.tensor(statistics.covariance(x_1d_list, y_1d_list))
+
+        self.x_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(x_1d_list), dtype = torch.float32), requires_grad=False)
+        self.y_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(y_1d_list), dtype = torch.float32), requires_grad=False)
+        result = torch.tensor(statistics.covariance(x_1d_list, y_1d_list), dtype = torch.float32)
+
         super().__init__(result, error)
 
     @classmethod
@@ -284,11 +286,12 @@ class Correlation(Operation):
         x_1d_list = x_1d.tolist()
         y_1d_list = y_1d.tolist()
         self.x_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
-        self.y_mean = torch.nn.Parameter(data=torch.mean(y_1d), requires_grad=False)
-        self.x_std = torch.nn.Parameter(data=torch.sqrt(torch.var(x_1d, correction = 1)), requires_grad=False)
+        self.y_mean = torch.nn.Parameter(data=torch.mean(y_1d), requires_grad = False)
+        self.x_std = torch.nn.Parameter(data=torch.sqrt(torch.var(x_1d, correction = 1)), requires_grad = False)
         self.y_std = torch.nn.Parameter(data=torch.sqrt(torch.var(y_1d, correction = 1)), requires_grad=False)
-        self.cov = torch.nn.Parameter(data=torch.tensor(statistics.covariance(x_1d_list, y_1d_list)), requires_grad=False)
-        result = torch.tensor(statistics.correlation(x_1d_list, y_1d_list))
+        self.cov = torch.nn.Parameter(data=torch.tensor(statistics.covariance(x_1d_list, y_1d_list), dtype = torch.float32), requires_grad=False)
+        result = torch.tensor(statistics.correlation(x_1d_list, y_1d_list), dtype = torch.float32)
+
         super().__init__(result, error)
 
     @classmethod
@@ -315,7 +318,7 @@ class Regression(Operation):
 
         x_one = stacked_x(x_1ds)
         result_1d = np.matmul(np.matmul(np.linalg.inv(np.matmul(x_one.transpose(), x_one)), x_one.transpose()), y_1d)
-        result = torch.tensor(result_1d).reshape(1, -1, 1)
+        result = torch.tensor(result_1d, dtype = torch.float32).reshape(1, -1, 1)
         super().__init__(result, error)
 
     @classmethod
