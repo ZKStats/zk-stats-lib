@@ -4,7 +4,7 @@ from pathlib import Path
 
 import torch
 
-from zkstats.core import prover_gen_settings, verifier_setup, prover_gen_proof, verifier_verify, get_data_commitment_maps
+from zkstats.core import prover_gen_settings, setup, prover_gen_proof, verifier_verify, get_data_commitment_maps
 from zkstats.computation import IModel
 
 
@@ -67,7 +67,7 @@ def compute(
         mode="resources",
         settings_path=str(settings_path),
     )
-    verifier_setup(
+    setup(
         str(model_path),
         str(compiled_model_path),
         str(settings_path),
