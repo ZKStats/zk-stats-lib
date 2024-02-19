@@ -63,11 +63,12 @@ def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
 #### Torch Operations
 Aside from the ZKStats operations, you can also use PyTorch functions like (`torch.abs`, `torch.max`, ...etc).
 
-<!-- TODO: elaborate -->
-**Caveats**: Not all PyTorch functions are supported. For example, `X[X > 0]` is not supported. You should use `torch.where` to do filtering instead. We will have a list for all supported PyTorch functions soon.
+**Caveats**: Not all PyTorch functions are supported. For example, filtering data from a list by `X[X > 0]` is not supported.
+
+TODO: We should have a list for all supported PyTorch functions.
 
 #### Data Filtering
-You can use `torch.where` to filter data based on a condition.
+As the example above shows filtering by condition + index (e.g. `X[X > 0]`) doesn't work. You should use condition + `torch.where` instead.
 
 ```python
 def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
@@ -157,7 +158,6 @@ setup(
 
 ```python
 prover_gen_proof(
-    # TODO: confirm if it's still required?
     prover_model_path,  # path to the onnx format model
     sel_data_path,  # path to the preprocessed dataset
     witness_path,  # path to store the generated witness file
