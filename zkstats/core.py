@@ -52,7 +52,7 @@ def create_dummy(data_path: str, dummy_data_path: str) -> None:
 # ===================================================================================================
 # ===================================================================================================
 
-# we decide to not have sel_data_path as parameter since a bit redundant parameter.
+
 def prover_gen_settings(
     data_path: str,
     selected_columns: list[str],
@@ -333,7 +333,7 @@ def _gen_settings(
   # Poseidon is not homomorphic additive, maybe consider Pedersens or Dory commitment.
   gip_run_args = ezkl.PyRunArgs()
   gip_run_args.input_visibility = "hashed"  # one commitment (values hashed) for each column
-  gip_run_args.param_visibility = "private"  # no parameters used
+  gip_run_args.param_visibility = "private"  # no parameters shown
   gip_run_args.output_visibility = "public"  # should be `(torch.Tensor(1.0), output)`
 
  # generate settings

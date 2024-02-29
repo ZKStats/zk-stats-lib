@@ -59,7 +59,7 @@ def compute(
 
     prover_gen_settings(
         data_path=data_path,
-        col_array=selected_columns,
+        selected_columns=selected_columns,
         sel_data_path=str(sel_data_path),
         prover_model=model,
         prover_model_path=str(model_path),
@@ -67,6 +67,7 @@ def compute(
         mode="resources",
         settings_path=str(settings_path),
     )
+
     setup(
         str(model_path),
         str(compiled_model_path),
