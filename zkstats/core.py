@@ -13,21 +13,33 @@ from zkstats.computation import IModel
 # ===================================================================================================
 # ===================================================================================================
 
-# Here dummy_sel_data_path is redundant, but here to use process_data
 def verifier_define_calculation(
   dummy_data_path: str,
-  col_array: list[str],
+  selected_columns: list[str],
+  # TODO: Here dummy_sel_data_path is redundant, but here to use process_data
   dummy_sel_data_path: str,
   verifier_model: Type[IModel],
   verifier_model_path: str,
 ) -> None:
-  dummy_data_tensor_array = _process_data(dummy_data_path, col_array, dummy_sel_data_path)
+  """
+  Export the verifier model to an ONNX file.
+  :param dummy_data_path: path to the dummy data file
+  :param selected_columns: column names selected for computation
+  :param dummy_sel_data_path: path to store generated preprocessed dummy data file
+  :param verifier_model: the verifier model class
+  :param verifier_model_path: path to store the generated verifier model file in onnx format
+  """
+  dummy_data_tensor_array = _process_data(dummy_data_path, selected_columns, dummy_sel_data_path)
   # export onnx file
   _export_onnx(verifier_model, dummy_data_tensor_array, verifier_model_path)
 
 
-# given data file (whole json table), create a dummy data file with randomized data
+# TODO: Should only need the shape of data instead of the real dataset, since
+# users (verifiers) call this function and they don't have the real data.
 def create_dummy(data_path: str, dummy_data_path: str) -> None:
+    """
+    Create a dummy data file with randomized data based on the shape of the original data.
+    """
     data = json.loads(open(data_path, "r").read())
     # assume all columns have same number of rows
     dummy_data ={}
@@ -43,15 +55,27 @@ def create_dummy(data_path: str, dummy_data_path: str) -> None:
 # we decide to not have sel_data_path as parameter since a bit redundant parameter.
 def prover_gen_settings(
     data_path: str,
-    col_array: list[str],
+    selected_columns: list[str],
     sel_data_path: list[str],
     prover_model: Type[IModel],
     prover_model_path: str,
     scale: Union[list[int], Literal["default"]],
+    # TODO: should be able to hardcode mode to "resources" or make it default?
     mode: Union[Literal["resources"], Literal["accuracy"]],
     settings_path: str,
 ):
-    data_tensor_array = _process_data(data_path, col_array, sel_data_path)
+    """
+    Generate and calibrate settings for the given model and data.
+    :param data_path: path to the data file
+    :param selected_columns: column names selected for computation
+    :param sel_data_path: path to store generated preprocessed data file
+    :param prover_model: the prover model class
+    :param prover_model_path: path to store the generated prover model file in onnx format
+    :param scale: the scale to use for the computation. It's a list of integer or "default" for default scale
+    :param mode: the mode to use for the computation. It's either "resources" or "accuracy"
+    :param settings_path: path to store the generated settings file
+    """
+    data_tensor_array = _process_data(data_path, selected_columns, sel_data_path)
 
     # export onnx file
     _export_onnx(prover_model, data_tensor_array, prover_model_path)
@@ -61,17 +85,24 @@ def prover_gen_settings(
 # ===================================================================================================
 # ===================================================================================================
 
-# Here prover can concurrently call this since all params are public to get pk.
-# Here write as verifier function to emphasize that verifier must calculate its own vk to be sure
-def verifier_setup(
-    verifier_model_path: str,
-    verifier_compiled_model_path: str,
+def setup(
+    model_path: str,
+    compiled_model_path: str,
     settings_path: str,
     vk_path: str,
     pk_path: str,
 ) -> None:
+  """
+  Compile the verifier model and generate the verification key and public key.
+
+  :param model_path: path to the model file in onnx format
+  :param compiled_model_path: path to store the generated compiled verifier model
+  :param settings_path: path to the settings file
+  :param vk_path: path to store the generated verification key file
+  :param pk_path: path to store the generated public key file
+  """
   # compile circuit
-  res = ezkl.compile_circuit(verifier_model_path, verifier_compiled_model_path, settings_path)
+  res = ezkl.compile_circuit(model_path, compiled_model_path, settings_path)
   assert res == True
 
   # srs path
@@ -81,7 +112,7 @@ def verifier_setup(
   print("==== setting up ezkl ====")
   start_time = time.time()
   res = ezkl.setup(
-        verifier_compiled_model_path,
+        compiled_model_path,
         vk_path,
         pk_path)
   end_time = time.time()
@@ -104,7 +135,18 @@ def prover_gen_proof(
     settings_path: str,
     proof_path: str,
     pk_path: str,
-):
+) -> None:
+    """
+    Generate a proof for the given model and data.
+
+    :param prover_model_path: path to the prover model file in onnx format
+    :param sel_data_path: path to the preprocessed data file
+    :param witness_path: path to store the generated witness file
+    :param prover_compiled_model_path: path to store the generated compiled prover model
+    :param settings_path: path to the settings file
+    :param proof_path: path to store the generated proof file
+    :param pk_path: path to the public key file
+    """
     res = ezkl.compile_circuit(prover_model_path, prover_compiled_model_path, settings_path)
     assert res == True
     # now generate the witness file
@@ -136,6 +178,9 @@ def prover_gen_proof(
     assert os.path.isfile(proof_path)
 
 
+# ===================================================================================================
+# ===================================================================================================
+
 # commitment_map is a mapping[column_name, commitment_hex]
 # E.g. {
 #     "columns_0": "0x...",
@@ -152,10 +197,10 @@ TCommitmentMap = Mapping[str, str]
 # }
 TCommitmentMaps = Mapping[str, TCommitmentMap]
 
-# ===================================================================================================
-# ===================================================================================================
 def verifier_verify(proof_path: str, settings_path: str, vk_path: str, selected_columns: Sequence[str], commitment_maps: TCommitmentMaps) -> torch.Tensor:
   """
+  Verify the proof and return the result.
+
   :param proof_path: path to the proof file
   :param settings_path: path to the settings file
   :param vk_path: path to the verification key file
@@ -212,7 +257,16 @@ def verifier_verify(proof_path: str, settings_path: str, vk_path: str, selected_
 
 def get_data_commitment_maps(data_path: str, scales: Sequence[int]) -> TCommitmentMaps:
   """
-  Generate a map from scale to column name to commitment.
+  Generate a data commitment map for each scale. Commitments for different scales are required
+  so that verifiers can verify proofs with different scales.
+
+  :param data_path: path to the data file. The data file should be a JSON file with the following format:
+    {
+      "column_0": [number_0, number_1, ...],
+      "column_1": [number_0, number_1, ...],
+    }
+  :param scales: a list of scales to use for the commitments.
+  :return: a map from scale to column name to commitment.
   """
   with open(data_path) as f:
     data_json = json.load(f)

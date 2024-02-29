@@ -7,7 +7,7 @@ import importlib.util
 import click
 import torch
 
-from .core import prover_gen_proof, prover_gen_settings, verifier_setup, verifier_verify, get_data_commitment_maps
+from .core import prover_gen_proof, prover_gen_settings, setup, verifier_verify, get_data_commitment_maps
 from .computation import computation_to_model
 
 cwd = os.getcwd()
@@ -53,7 +53,7 @@ def prove(computation_path: str, data_path: str):
         "resources",
         settings_path,
     )
-    verifier_setup(
+    setup(
         model_onnx_path,
         compiled_model_path,
         settings_path,
