@@ -67,9 +67,7 @@ def compute(
         mode="resources",
         settings_path=str(settings_path),
     )
-    print('betw gen_settings and setup')
-    f_setting = open(str(settings_path), "r")
-    print("setting: ", f_setting.read())
+
     setup(
         str(model_path),
         str(compiled_model_path),
