@@ -5,6 +5,7 @@
 ZKStats Library is the core library for ZKStats Platform, designed to generate zero-knowledge (ZK) proofs for statistical functions, leveraging PyTorch and powered by [EZKL](https://github.com/zkonduit/ezkl). This library allows data providers to share statistical result of their dataset with users while still preserving privacy. Users can be convinced the correctness of their computation by verifying a ZK proof without learning the underlying data.
 
 ## Supported Statistical Functions
+
 ZKStats Library supports the same set of statistical functions as [Python statistcs module](https://docs.python.org/3/library/statistics.html#averages-and-measures-of-central-location): `mean`, `geometric_mean`, `harmonic_mean`, `median`, `mode`, `pstdev`, `pvariance`, `stdev`, `variance`, `covariance`, `correlation`, and `linear_regression`.
 
 ## Installation
@@ -42,9 +43,9 @@ def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
     ...
 
 ```
+
 - first argument is a `State` object, which contains the statistical functions that ZKStats supports.
 - second argument is a list of PyTorch tensors, the input data. `data[0]` is the first column, `data[1]` is the second column, and so on.
-
 
 For example, we have two columns of data and we want to compute the mean of the medians of the two columns:
 
@@ -61,14 +62,16 @@ def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
 > NOTE: `reshape` is required for now since input must be in shape `[1, data_size, 1]` for now. It should be addressed in the future
 
 #### Torch Operations
+
 Aside from the ZKStats operations, you can also use PyTorch functions like (`torch.abs`, `torch.max`, ...etc).
 
-**Caveats**: Not all PyTorch functions are supported. For example, filtering data from a list by `X[X > 0]` is not supported.
+**Caveats**: Not all PyTorch functions are supported. For example, filtering data from a list by `X[X > 0]` is not supported because the zk circuit needs to be of a predetermined size, hence we cannot arbitrarily reshape our X into a new shape based on the filter condition inside the circuit.
 
 TODO: We should have a list for all supported PyTorch functions.
 
 #### Data Filtering
-As the example above shows filtering by condition + index (e.g. `X[X > 0]`) doesn't work. You should use condition + `torch.where` instead.
+
+Since we cannot filter data into any arbitrary shape using just condition + index (e.g. `X[X > 0]`), we need to filter data while still preserving the shape. We use condition + `torch.where` instead.
 
 ```python
 def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
@@ -77,16 +80,18 @@ def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
     condition = x > 20
     # Filter out data that is greater than 20. For the data that is greater than 20, we will use 0.0
     fil_X = torch.where(condition=condition, input=x, other=0.0)
-    return s.mean(abs_data)
+    return s.mean(fil_X)
 ```
-**Caveats**: filtering data using `torch.where` leads to incorrect result from statistical functions. We are working on a solution for this.
+
+**Caveats**: Currently, this 'where' operation still doesn't work correctly, since we cannot just plug fil_X into our current s.mean() due to incompatible shape of fil_X and X in reality, we will update the compatible implementation of how to do data filtering soon. Keep posted!
 
 ### Proof Generation and Verification
+
 The flow between data providers and users is as follows:
 ![zkstats-lib-flow](./assets/zkstats-lib.png)
 
-
 #### Data Provider: generate data commitments
+
 Data providers should generate commitments for their dataset beforehand. For a dataset (e.g. a table in a SQL database), there should be a commitment for each column. These commitments are used by users later, to verify the zkp proof and be convinced the computation is done with the correct dataset.
 
 ```python
@@ -102,7 +107,9 @@ commitment_maps = get_data_commitment_maps(data_path, possible_scales)
 When generating a proof, since dataset might contain floating points, data providers need to specify a proper "scale" to encode and decode floating points. Scale is chosen based on the value precision in the dataset and the type of computation. `possible_scales` should cover as many scales as possible and data providers should always use the scales within `possible_scales`, to make sure users can always get the corresponding commitments to verify the proofs.
 
 #### Both: derive PyTorch model from the computation
+
 When a user wants to request a data provider to generate a proof for their defined computation, the user must send the data provider first. Then, both the data provider and the user transform the model to necessary settings, respectively.
+
 ```python
 from zkstats.core import computation_to_model
 
@@ -123,7 +130,9 @@ prover_gen_settings(
     settings_path,  # path to store the generated settings
 )
 ```
+
 #### Data Provider: get proving key
+
 ```python
 setup(
     prover_model_path,  # path to the onnx format model
@@ -135,6 +144,7 @@ setup(
 ```
 
 #### User: generate verification key
+
 ```python
 verifier_define_calculation(
     dummy_data_path,  # path to the dummy data
@@ -144,6 +154,7 @@ verifier_define_calculation(
     verifier_model_path,  # path to store the generated onnx format of the model
 )
 ```
+
 ```python
 setup(
     verifier_model_path,  # path to the onnx format model
@@ -169,6 +180,7 @@ prover_gen_proof(
 ```
 
 #### User: verify proof and get the result
+
 ```python
 res = verifier_verify(
     proof_path,  # path to the proof
@@ -179,10 +191,11 @@ res = verifier_verify(
 )
 print("The result is", res)
 ```
+
 - **Success**: The result is correct and the computation is verified.
 - **Failure Cases**:
-    - Computations not within the acceptable error margin.
-    - Runtime errors should be reported for further investigation.
+  - Computations not within the acceptable error margin.
+  - Runtime errors should be reported for further investigation.
 
 ## Examples
 
@@ -193,7 +206,7 @@ See our jupyter notebook for [examples](./examples/).
 See our jupyter notebook for [benchmarks](./benchmark/).
 
 ## Note
+
 - We implement using witness approach instead of directly calculating the value in circuit. This sometimes allows us to not calculate stuffs like division or exponential which requires larger scale in settings. (If we don't use larger scale in those cases, the accuracy will be very bad)
 - For non-linearity function, larger scale leads to larger lookup table, hence bigger circuit size. Can compare between geomean_OG (implemented in traditional way, instead of witness approach) which is the non-linearity function (p bad with larger scale), and mean_OG which is linear function (p fine with larger scale). Hence, we can say that for linearity func like mean, we can use traditional way, while for non-linear func like geomean, we should use witness approach.
 - Dummy data to feed in verifier onnx file needs to have same shape as the private dataset, but can be filled with any value (we just randomize it to be uniform 1-10 with 1 decimal).
-
