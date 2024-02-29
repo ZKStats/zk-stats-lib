@@ -4,7 +4,22 @@ from typing import Callable, Type, Optional, Union
 import torch
 from torch import nn
 
-from .ops import Operation, Mean, Median, IsResultPrecise
+from .ops import (
+    Operation,
+    Mean,
+    Median,
+    GeometricMean,
+    HarmonicMean,
+    Mode,
+    PStdev,
+    PVariance,
+    Stdev,
+    Variance,
+    Covariance,
+    Correlation,
+    Regression,
+    IsResultPrecise,
+)
 
 
 DEFAULT_ERROR = 0.01
@@ -31,15 +46,91 @@ class State:
     def set_ready_for_exporting_onnx(self) -> None:
         self.current_op_index = 0
 
-    def mean(self, X: torch.Tensor) -> tuple[IsResultPrecise, torch.Tensor]:
-        return self._call_op(X, Mean)
+    def mean(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the mean of the input tensor. The behavior should conform to
+        [statistics.mean](https://docs.python.org/3/library/statistics.html#statistics.mean) in Python standard library.
+        """
+        return self._call_op([x], Mean)
 
-    def median(self, X: torch.Tensor) -> tuple[IsResultPrecise, torch.Tensor]:
-        return self._call_op(X, Median)
+    def median(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the median of the input tensor. The behavior should conform to
+        [statistics.median](https://docs.python.org/3/library/statistics.html#statistics.median) in Python standard library.
+        """
+        return self._call_op([x], Median)
 
-    # TODO: add the rest of the operations
+    def geometric_mean(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the geometric mean of the input tensor. The behavior should conform to
+        [statistics.geometric_mean](https://docs.python.org/3/library/statistics.html#statistics.geometric_mean) in Python standard library.
+        """
+        return self._call_op([x], GeometricMean)
 
-    def _call_op(self, x: torch.Tensor, op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
+    def harmonic_mean(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the harmonic mean of the input tensor. The behavior should conform to
+        [statistics.harmonic_mean](https://docs.python.org/3/library/statistics.html#statistics.harmonic_mean) in Python standard library.
+        """
+        return self._call_op([x], HarmonicMean)
+
+    def mode(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the mode of the input tensor. The behavior should conform to
+        [statistics.mode](https://docs.python.org/3/library/statistics.html#statistics.mode) in Python standard library.
+        """
+        return self._call_op([x], Mode)
+
+    def pstdev(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the population standard deviation of the input tensor. The behavior should conform to
+        [statistics.pstdev](https://docs.python.org/3/library/statistics.html#statistics.pstdev) in Python standard library.
+        """
+        return self._call_op([x], PStdev)
+
+    def pvariance(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the population variance of the input tensor. The behavior should conform to
+        [statistics.pvariance](https://docs.python.org/3/library/statistics.html#statistics.pvariance) in Python standard library.
+        """
+        return self._call_op([x], PVariance)
+
+    def stdev(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the sample standard deviation of the input tensor. The behavior should conform to
+        [statistics.stdev](https://docs.python.org/3/library/statistics.html#statistics.stdev) in Python standard library.
+        """
+        return self._call_op([x], Stdev)
+
+    def variance(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the sample variance of the input tensor. The behavior should conform to
+        [statistics.variance](https://docs.python.org/3/library/statistics.html#statistics.variance) in Python standard library.
+        """
+        return self._call_op([x], Variance)
+
+    def covariance(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the covariance of x and y. The behavior should conform to
+        [statistics.covariance](https://docs.python.org/3/library/statistics.html#statistics.covariance) in Python standard library.
+        """
+        return self._call_op([x, y], Covariance)
+
+    def correlation(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the correlation of x and y. The behavior should conform to
+        [statistics.correlation](https://docs.python.org/3/library/statistics.html#statistics.correlation) in Python standard library.
+        """
+        return self._call_op([x, y], Correlation)
+
+    def linear_regression(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the linear regression of x and y. The behavior should conform to
+        [statistics.linear_regression](https://docs.python.org/3/library/statistics.html#statistics.linear_regression) in Python standard library.
+        """
+        return self._call_op([x, y], Regression)
+
+    def _call_op(self, x: list[torch.Tensor], op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
         if self.current_op_index is None:
             op = op_type.create(x, self.error)
             self.ops.append(op)
@@ -95,18 +186,21 @@ class IModel(nn.Module):
         ...
 
 
-
 # An computation function. Example:
 # def computation(state: State, x: list[torch.Tensor]):
 #     out_0 = state.median(x[0])
 #     out_1 = state.median(x[1])
 #     return state.mean(torch.tensor([out_0, out_1]).reshape(1,-1,1))
-TComputation = Callable[[State, list[torch.Tensor]], tuple[IsResultPrecise, torch.Tensor]]
+TComputation = Callable[[State, list[torch.Tensor]], torch.Tensor]
 
 
-def create_model(computation: TComputation, error: float = DEFAULT_ERROR) -> tuple[State, Type[IModel]]:
+def computation_to_model(computation: TComputation, error: float = DEFAULT_ERROR) -> tuple[State, Type[IModel]]:
     """
     Create a torch model from a `computation` function defined by user
+    :param computation: A function that takes a State and a list of torch.Tensor, and returns a torch.Tensor
+    :param error: The error tolerance for the computation.
+    :return: A tuple of State and Model. The Model is a torch model that can be used for exporting to onnx.
+    State is a container for intermediate results of computation, which can be useful when debugging.
     """
     state = State(error)
 
@@ -117,5 +211,4 @@ def create_model(computation: TComputation, error: float = DEFAULT_ERROR) -> tup
 
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             return computation(state, x)
-
     return state, Model

@@ -137,7 +137,7 @@ def prover_gen_settings(data_path, col_array,  sel_data_path, prover_model,prove
 
 # Here prover can concurrently call this since all params are public to get pk.
 # Here write as verifier function to emphasize that verifier must calculate its own vk to be sure
-def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path ):
+def setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path ):
   # compile circuit
   res = ezkl.compile_circuit(verifier_model_path, verifier_compiled_model_path, settings_path)
   assert res == True
@@ -163,28 +163,6 @@ def verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_p
 
 # ===================================================================================================
 # ===================================================================================================
-
-def prover_setup(
-    data_path,
-    col_array,
-    sel_data_path,
-    prover_model,
-    prover_model_path,
-    prover_compiled_model_path,
-    scale,
-    mode,
-    settings_path,
-    vk_path,
-    pk_path,
-):
-    data_tensor_array = process_data(data_path, col_array, sel_data_path)
-
-    # export onnx file
-    export_onnx(prover_model, data_tensor_array, prover_model_path)
-    # gen + calibrate setting
-    gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
-    verifier_setup(prover_model_path, prover_compiled_model_path, settings_path, vk_path, pk_path)
-
 
 def prover_gen_proof(
     prover_model_path,
@@ -307,7 +285,7 @@ def bench_one(data_path, col_array, model_func, gen_param_func, data_name, scale
     f_setting['run_args']['logrows']=logrow
     json.dump(f_setting, open(settings_path, "w"), indent=2)  # You can adjust the 'indent' parameter for formatting
     print("logrow cal settings: ",json.loads(open(settings_path, "r").read()) )
-    verifier_setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path )
+    setup(verifier_model_path, verifier_compiled_model_path, settings_path,vk_path, pk_path)
 
     gen_prf_time = prover_gen_proof(prover_model_path, sel_data_path, witness_path, prover_compiled_model_path, settings_path, proof_path, pk_path)
 
