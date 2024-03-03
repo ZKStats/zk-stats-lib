@@ -156,9 +156,11 @@ def prover_gen_proof(
     # print(witness["outputs"])
     settings = json.load(open(settings_path))
     output_scale = settings['model_output_scales']
-    print("witness boolean: ", ezkl.vecu64_to_float(witness['outputs'][0][0], output_scale[0]))
+    # print("witness boolean: ", ezkl.vecu64_to_float(witness['outputs'][0][0], output_scale[0]))
+    print("witness boolean: ", ezkl.felt_to_float(witness['outputs'][0][0], output_scale[0]))
     for i in range(len(witness['outputs'][1])):
-      print("witness result", i+1,":", ezkl.vecu64_to_float(witness['outputs'][1][i], output_scale[1]))
+      # print("witness result", i+1,":", ezkl.vecu64_to_float(witness['outputs'][1][i], output_scale[1]))
+      print("witness result", i+1,":", ezkl.felt_to_float(witness['outputs'][1][i], output_scale[1]))
 
     # GENERATE A PROOF
     print("==== Generating Proof ====")
@@ -238,7 +240,8 @@ def verifier_verify(proof_path: str, settings_path: str, vk_path: str, selected_
   # Sanity check
   # Check each commitment is correct
   for i, (actual_commitment, column_name) in enumerate(zip(inputs, selected_columns)):
-     actual_commitment_str = ezkl.vecu64_to_felt(actual_commitment)
+    #  actual_commitment_str = ezkl.vecu64_to_felt(actual_commitment)
+     actual_commitment_str = (actual_commitment)
      input_scale = input_scales[i]
      expected_commitment = commitment_maps[str(input_scale)][column_name]
      assert actual_commitment_str == expected_commitment, f"commitment mismatch: {i=}, {actual_commitment_str=}, {expected_commitment=}"
@@ -247,9 +250,14 @@ def verifier_verify(proof_path: str, settings_path: str, vk_path: str, selected_
   # - is a tuple (is_in_error, result)
   # - is_valid is True
   # Sanity check
-  is_in_error = ezkl.vecu64_to_float(outputs[0], output_scales[0])
+  # is_in_error = ezkl.vecu64_to_float(outputs[0], output_scales[0])
+  is_in_error = ezkl.felt_to_float(outputs[0], output_scales[0])
   assert is_in_error == 1.0, f"result is not within error"
-  return ezkl.vecu64_to_float(outputs[1], output_scales[1])
+  result_arr = []
+  for index in range(len(outputs)-1):
+    # result_arr.append(ezkl.vecu64_to_float(outputs[index+1], output_scales[1]))
+    result_arr.append(ezkl.felt_to_float(outputs[index+1], output_scales[1]))
+  return result_arr
 
 
 # ===================================================================================================
@@ -376,7 +384,9 @@ def _process_data(
 
 def _get_commitment_for_column(column: list[float], scale: int) -> str:
   # Ref: https://github.com/zkonduit/ezkl/discussions/633
-  serialized_data = [ezkl.float_to_vecu64(x, scale) for x in column]
-  res_poseidon_hash = ezkl.poseidon_hash(serialized_data)
-  res_hex = ezkl.vecu64_to_felt(res_poseidon_hash[0])
-  return res_hex
+  # serialized_data = [ezkl.float_to_vecu64(x, scale) for x in column]
+  serialized_data = [ezkl.float_to_felt(x, scale) for x in column]
+  res_poseidon_hash = ezkl.poseidon_hash(serialized_data)[0]
+  # res_hex = ezkl.vecu64_to_felt(res_poseidon_hash[0])
+
+  return res_poseidon_hash

@@ -47,7 +47,8 @@ def test_get_data_commitment_maps_hardcoded(tmp_path):
     data_to_file(data_path, [column_0, column_1])
     scales = [2, 3]
     commitment_maps = get_data_commitment_maps(data_path, scales)
-    expected = {"2": {'columns_0': '0x28b5eeb5aeee399c8c50c5b323def9a1aec1deee5b9ae193463d4f9b8893a9a3', 'columns_1': '0x0523c85a86dddd810418e8376ce6d9d21b1b7363764c9c31b575b8ffbad82987'}, "3": {'columns_0': '0x0a2906522d3f902ff4a63ee8aed4d2eaec0b14f71c51eb9557bd693a4e7d77ad', 'columns_1': '0x2dac7fee1efb9eb955f52494a26a3fba6d1fa28cc819e598cb0af31a47b29d08'}}
+    # expected = {"2": {'columns_0': '0x28b5eeb5aeee399c8c50c5b323def9a1aec1deee5b9ae193463d4f9b8893a9a3', 'columns_1': '0x0523c85a86dddd810418e8376ce6d9d21b1b7363764c9c31b575b8ffbad82987'}, "3": {'columns_0': '0x0a2906522d3f902ff4a63ee8aed4d2eaec0b14f71c51eb9557bd693a4e7d77ad', 'columns_1': '0x2dac7fee1efb9eb955f52494a26a3fba6d1fa28cc819e598cb0af31a47b29d08'}}
+    expected = {"2": {'columns_0': 'a3a993889b4f3d4693e19a5beedec1aea1f9de23b3c5508c9c39eeaeb5eeb528', 'columns_1': '8729d8baffb875b5319c4c7663731b1bd2d9e66c37e8180481dddd865ac82305'}, "3": {'columns_0': 'ad777d4e3a69bd5795eb511cf7140becead2d4aee83ea6f42f903f2d5206290a', 'columns_1': '089db2471af30acb98e519c88ca21f6dba3f6aa29424f555b99efb1eee7fac2d'}}
     assert commitment_maps == expected
 
 

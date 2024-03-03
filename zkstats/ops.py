@@ -69,8 +69,7 @@ class Median(Operation):
         len = x.size()[1]
         half_len = torch.floor(torch.div(len, 2))
         
-        # not support modulo yet
-        less_cons = count_less<half_len+2*(len/2 - torch.floor(len/2))
+        less_cons = count_less<half_len+len%2
         more_cons = count_less+count_equal>half_len
 
         # For count_equal == 0
