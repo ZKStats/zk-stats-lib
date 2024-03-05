@@ -208,5 +208,11 @@ See our jupyter notebook for [benchmarks](./benchmark/).
 ## Note
 
 - We implement using witness approach instead of directly calculating the value in circuit. This sometimes allows us to not calculate stuffs like division or exponential which requires larger scale in settings. (If we don't use larger scale in those cases, the accuracy will be very bad)
-- For non-linearity function, larger scale leads to larger lookup table, hence bigger circuit size. Can compare between geomean_OG (implemented in traditional way, instead of witness approach) which is the non-linearity function (p bad with larger scale), and mean_OG which is linear function (p fine with larger scale). Hence, we can say that for linearity func like mean, we can use traditional way, while for non-linear func like geomean, we should use witness approach.
 - Dummy data to feed in verifier onnx file needs to have same shape as the private dataset, but can be filled with any value (we just randomize it to be uniform 1-10 with 1 decimal).
+- For Mode function, if there are more than 1 value possible, we just output one of them (the one that first encountered), conforming to the spec of statistics.mode in python lib (https://docs.python.org/3.9/library/statistics.html#statistics.mode)
+
+## Legacy
+
+Not relevant after Commit 48142b5b9ab6b577deadc27886018131008ebad5
+
+- For non-linearity function, larger scale leads to larger lookup table, hence bigger circuit size. Can compare between geomean_OG (implemented in traditional way, instead of witness approach) which is the non-linearity function (p bad with larger scale), and mean_OG which is linear function (p fine with larger scale). Hence, we can say that for linearity func like mean, we can use traditional way, while for non-linear func like geomean, we should use witness approach. However, we just abstract this out by using only the witness approach in our library (which makes sense!)

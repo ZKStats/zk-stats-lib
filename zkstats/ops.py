@@ -57,7 +57,6 @@ class Median(Operation):
         self.lower = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)-1], dtype = torch.float32), requires_grad=False)
         self.upper = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)], dtype = torch.float32), requires_grad=False)
 
-
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Median':
         return cls(x[0], error)
@@ -70,8 +69,7 @@ class Median(Operation):
         len = x.size()[1]
         half_len = torch.floor(torch.div(len, 2))
         
-        # not support modulo yet
-        less_cons = count_less<half_len+2*(len/2 - torch.floor(len/2))
+        less_cons = count_less<half_len+len%2
         more_cons = count_less+count_equal>half_len
 
         # For count_equal == 0
@@ -85,7 +83,6 @@ class Median(Operation):
 
         median_in_cons = torch.logical_and(less_cons, more_cons)
         median_out_cons = torch.logical_and(torch.logical_and(bound, bound_avg), torch.logical_and(torch.logical_and(lower_cons, upper_cons), torch.logical_and(lower_exist, upper_exist)))
-
         return torch.where(count_equal==0, median_out_cons, median_in_cons)
 
 class GeometricMean(Operation):
@@ -120,28 +117,54 @@ def mode_within(data_array: torch.Tensor, error: float) -> torch.Tensor:
     """
     Find the mode (the single most common data point) from the data_array.
     :param data_array: The data array.
-    :param error: The error that allows the data point to be considered as the same.
-       For example, if error = 0.01, then 0.999 and 1.001 are considered as the same.
+    :param error: The error that allows the data point to be considered the same.
+       For example, if error = 0.01, then 0.999 and 1.000 are considered the same.
     """
     max_sum_freq = 0
     mode = data_array[0]
-
-    for check_val in set(data_array):
+    # print("arrrrr: ", data_array)
+    # print("seetttt: ", torch.unique(data_array))
+    for check_val in data_array:
         sum_freq = sum(1 for ele in data_array if abs(ele - check_val) <= abs(error * check_val))
         if sum_freq > max_sum_freq:
             mode = check_val
             max_sum_freq = sum_freq
     return mode
 
+# TODO: Add mode_within, different from traditional mode
+# class Mode_(Operation):
+    # @classmethod
+    # def create(cls, x: list[torch.Tensor], error: float) -> 'Mode':
+    #     x_1d = to_1d(x[0])
+    #     #  Mode has no result_error, just num_error which is the 
+    #     # deviation that two numbers are considered the same. (Make sense because 
+    #     # if some dataset has all different data, mode will be trivial if this is not the case)
+    #     # This value doesn't depend on any scale, but on the dataset itself, and the intention 
+    #     # the evaluator. For example 0.01 means that data is counted as the same within 1% value range.
+
+    #     # If wanting the strict definition of Mode, can just put this error to be 0
+    #     result = torch.tensor(mode_within(x_1d, error))
+    #     return cls(result, error)
+
+    # def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
+    #     # Assume x is [1, n, 1]
+    #     x = x[0]
+    #     size = x.size()[1]
+    #     count_equal = torch.sum((torch.abs(x-self.result)<=torch.abs(self.error*self.result)).float())
+    #     _result = torch.tensor([
+    #         torch.sum((torch.abs(x-ele[0])<=torch.abs(self.error*ele[0])).float())<= count_equal
+    #         for ele in x[0]
+    #     ], dtype = torch.float32)
+    #     return torch.sum(_result) == size
+    
 
 class Mode(Operation):
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Mode':
         x_1d = to_1d(x[0])
-        # FIXME: Now hardcode 0.01 to be acceptable range of dataset that
-        # we want to consider it the same, totally different from our result_error
-        # This value doesn't depend on any scale, but on the dataset itself.
-        result = torch.tensor(mode_within(x_1d, 0.01))
+
+        # Here is traditional definition of Mode, can just put this num_error to be 0
+        result = torch.tensor(mode_within(x_1d, 0))
         return cls(result, error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
