@@ -18,6 +18,7 @@ from .ops import (
     Covariance,
     Correlation,
     Regression,
+    Where,
     IsResultPrecise,
 )
 
@@ -129,6 +130,10 @@ class State:
         [statistics.linear_regression](https://docs.python.org/3/library/statistics.html#statistics.linear_regression) in Python standard library.
         """
         return self._call_op([x, y], Regression)
+    
+    # WHERE operation
+    def where(self, filter: torch.Tensor, x:torch.Tensor) -> torch.Tensor:
+        return self._call_op([filter, x], Where)
 
     def _call_op(self, x: list[torch.Tensor], op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
         if self.current_op_index is None:
@@ -212,3 +217,4 @@ def computation_to_model(computation: TComputation, error: float = DEFAULT_ERROR
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             return computation(state, x)
     return state, Model
+

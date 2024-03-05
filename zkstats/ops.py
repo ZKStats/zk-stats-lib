@@ -6,6 +6,7 @@ import torch
 
 # boolean: either 1.0 or 0.0
 IsResultPrecise = torch.Tensor
+MagicNumber = 9999999
 
 
 class Operation(ABC):
@@ -22,15 +23,27 @@ class Operation(ABC):
         ...
 
 
+class Where(Operation):
+    @classmethod
+    def create(cls, x:list[torch.Tensor], error: float) -> 'Where':
+        # here error is trivial, but here to conform to other functions
+        return cls(torch.where(x[0],x[1], MagicNumber ),error)
+    def ezkl(self, x:list[torch.Tensor]) -> IsResultPrecise:
+        bool_array = torch.logical_or(x[1]==self.result, torch.logical_and(torch.logical_not(x[0]), self.result==MagicNumber))
+        return torch.sum(bool_array.float())==x[1].size()[1]
+       
+
 class Mean(Operation):
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Mean':
-        return cls(torch.mean(x[0]), error)
+        # support where statement, hopefully we can use 'nan' once onnx.isnan() is supported
+        return cls(torch.mean(x[0][x[0]!=MagicNumber]), error)
+        # return cls(torch.mean(x[0]), error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
-        x = x[0]
-        size = x.size()
-        return torch.abs(torch.sum(x)-size[1]*self.result)<=torch.abs(self.error*size[1]*self.result)
+        size = torch.sum((x[0]!=MagicNumber).float())
+        x = torch.where(x[0]==MagicNumber, 0.0, x[0])
+        return torch.abs(torch.sum(x)-size*self.result)<=torch.abs(self.error*size*self.result)
 
 
 def to_1d(x: torch.Tensor) -> torch.Tensor:
@@ -131,7 +144,8 @@ def mode_within(data_array: torch.Tensor, error: float) -> torch.Tensor:
             max_sum_freq = sum_freq
     return mode
 
-# TODO: Add mode_within, different from traditional mode
+
+# TODO: Add class Mode_within , different from traditional mode
 # class Mode_(Operation):
     # @classmethod
     # def create(cls, x: list[torch.Tensor], error: float) -> 'Mode':
@@ -177,7 +191,6 @@ class Mode(Operation):
             for ele in x[0]
         ], dtype = torch.float32)
         return torch.sum(_result) == size
-
 
 class PStdev(Operation):
     def __init__(self, x: torch.Tensor, error: float):
@@ -356,3 +369,4 @@ class Regression(Operation):
         x_one = torch.cat((*args[:-1], torch.ones_like(args[0])), dim=2)
         x_t = torch.transpose(x_one, 1, 2)
         return torch.sum(torch.abs(x_t @ x_one @ self.result - x_t @ y)) <= self.error * torch.sum(torch.abs(x_t @ y))
+
