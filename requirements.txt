@@ -1,4 +1,4 @@
-ezkl==7.0.0
+ezkl==9.1.0
 torch
 requests
 scipy
