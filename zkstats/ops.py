@@ -131,19 +131,40 @@ def mode_within(data_array: torch.Tensor, error: float) -> torch.Tensor:
             max_sum_freq = sum_freq
     return mode
 
+# TODO: Add mode_within, different from traditional mode
+# class Mode_(Operation):
+    # @classmethod
+    # def create(cls, x: list[torch.Tensor], error: float) -> 'Mode':
+    #     x_1d = to_1d(x[0])
+    #     #  Mode has no result_error, just num_error which is the 
+    #     # deviation that two numbers are considered the same. (Make sense because 
+    #     # if some dataset has all different data, mode will be trivial if this is not the case)
+    #     # This value doesn't depend on any scale, but on the dataset itself, and the intention 
+    #     # the evaluator. For example 0.01 means that data is counted as the same within 1% value range.
+
+    #     # If wanting the strict definition of Mode, can just put this error to be 0
+    #     result = torch.tensor(mode_within(x_1d, error))
+    #     return cls(result, error)
+
+    # def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
+    #     # Assume x is [1, n, 1]
+    #     x = x[0]
+    #     size = x.size()[1]
+    #     count_equal = torch.sum((torch.abs(x-self.result)<=torch.abs(self.error*self.result)).float())
+    #     _result = torch.tensor([
+    #         torch.sum((torch.abs(x-ele[0])<=torch.abs(self.error*ele[0])).float())<= count_equal
+    #         for ele in x[0]
+    #     ], dtype = torch.float32)
+    #     return torch.sum(_result) == size
+    
 
 class Mode(Operation):
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Mode':
         x_1d = to_1d(x[0])
-        # FIXME: Mode has no result_error, just num_error which is the 
-        # deviation that two numbers are considered the same. (Make sense because 
-        # if some dataset has all different data, mode will be trivial if this is not the case)
-        # This value doesn't depend on any scale, but on the dataset itself, and the intention 
-        # the evaluator. For example 0.01 means that data is counted as the same within 1% value range.
 
-        # If wanting the strict definition of Mode, can just put this error to be 0
-        result = torch.tensor(mode_within(x_1d, error))
+        # Here is traditional definition of Mode, can just put this num_error to be 0
+        result = torch.tensor(mode_within(x_1d, 0))
         return cls(result, error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
