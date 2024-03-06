@@ -45,8 +45,8 @@ class Mean(Operation):
         x = x[0]
         size = torch.sum((x!=MagicNumber).float())
         x = torch.where(x==MagicNumber, 0.0, x)
-        return torch.abs(torch.sum(x)-size*self.result)<=torch.abs(self.error*size*self.result)
-
+        return torch.abs(torch.sum(x)-size*self.result)<=torch.abs(self.error*self.result*size)
+    
 
 def to_1d(x: torch.Tensor) -> torch.Tensor:
     x_shape = x.size()
@@ -267,7 +267,7 @@ class Stdev(Operation):
         x = x[0]
         x_for_mean = torch.where(x==MagicNumber, 0.0, x)
         size = torch.sum((x!=MagicNumber).float())
-        x_mean_cons = torch.abs(torch.sum(x_for_mean)-size*(self.data_mean))<=torch.abs(self.error*size*self.data_mean)
+        x_mean_cons = torch.abs(torch.sum(x_for_mean)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
         x_for_std = torch.where(x==MagicNumber, self.data_mean, x)
         return torch.logical_and(
             torch.abs(torch.sum((x_for_std-self.data_mean)*(x_for_std-self.data_mean))-self.result*self.result*(size - 1))<=torch.abs(2*self.error*self.result*self.result*(size - 1)), x_mean_cons
@@ -297,7 +297,9 @@ class Variance(Operation):
 class Covariance(Operation):
     def __init__(self, x: torch.Tensor, y: torch.Tensor, error: float):
         x_1d = to_1d(x)
+        x_1d = x_1d[x_1d!=MagicNumber]
         y_1d = to_1d(y)
+        y_1d = y_1d[y_1d!=MagicNumber]
         x_1d_list = x_1d.tolist()
         y_1d_list = y_1d.tolist()
 
