@@ -129,6 +129,7 @@ class State:
         Calculate the linear regression of x and y. The behavior should conform to
         [statistics.linear_regression](https://docs.python.org/3/library/statistics.html#statistics.linear_regression) in Python standard library.
         """
+        # hence support only one x for now
         return self._call_op([x, y], Regression)
     
     # WHERE operation

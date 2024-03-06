@@ -30,6 +30,7 @@ class Where(Operation):
         return cls(torch.where(x[0],x[1], MagicNumber ),error)
     def ezkl(self, x:list[torch.Tensor]) -> IsResultPrecise:
         bool_array = torch.logical_or(x[1]==self.result, torch.logical_and(torch.logical_not(x[0]), self.result==MagicNumber))
+        # print('sellll: ', self.result)
         return torch.sum(bool_array.float())==x[1].size()[1]
        
 
@@ -41,8 +42,9 @@ class Mean(Operation):
         # return cls(torch.mean(x[0]), error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
-        size = torch.sum((x[0]!=MagicNumber).float())
-        x = torch.where(x[0]==MagicNumber, 0.0, x[0])
+        x = x[0]
+        size = torch.sum((x!=MagicNumber).float())
+        x = torch.where(x==MagicNumber, 0.0, x)
         return torch.abs(torch.sum(x)-size*self.result)<=torch.abs(self.error*size*self.result)
 
 
@@ -64,6 +66,7 @@ class Median(Operation):
         # we want in our context. However, we tend to have x as a `[1, len(x), 1]`. In this case,
         # we need to flatten `x` to 1d array to get the correct `lower` and `upper`.
         x_1d = to_1d(x)
+        x_1d = x_1d[x_1d!=MagicNumber]
         super().__init__(torch.tensor(np.median(x_1d)), error)
         sorted_x = np.sort(x_1d)
         len_x = len(x_1d)
@@ -76,21 +79,25 @@ class Median(Operation):
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
+        old_size = x.size()[1]
+        size = torch.sum((x!=MagicNumber).float())
+        min_x = torch.min(x)
+        x = torch.where(x==MagicNumber,min_x-1, x)
+
         # since within 1%, we regard as same value
-        count_less = torch.sum((x < self.result).float())
+        count_less = torch.sum((x < self.result).float())-(old_size-size)
         count_equal = torch.sum((x==self.result).float())
-        len = x.size()[1]
-        half_len = torch.floor(torch.div(len, 2))
+        half_size = torch.floor(torch.div(size, 2))
         
-        less_cons = count_less<half_len+len%2
-        more_cons = count_less+count_equal>half_len
+        less_cons = count_less<half_size+size%2
+        more_cons = count_less+count_equal>half_size
 
         # For count_equal == 0
         lower_exist = torch.sum((x==self.lower).float())>0
-        lower_cons = torch.sum((x>self.lower).float())==half_len
+        lower_cons = torch.sum((x>self.lower).float())==half_size
         upper_exist = torch.sum((x==self.upper).float())>0
-        upper_cons = torch.sum((x<self.upper).float())==half_len
-        bound = count_less== half_len
+        upper_cons = torch.sum((x<self.upper).float())==half_size
+        bound = count_less== half_size
         # 0.02 since 2*0.01
         bound_avg = (torch.abs(self.lower+self.upper-2*self.result)<=torch.abs(2*self.error*self.result))
 
@@ -98,17 +105,20 @@ class Median(Operation):
         median_out_cons = torch.logical_and(torch.logical_and(bound, bound_avg), torch.logical_and(torch.logical_and(lower_cons, upper_cons), torch.logical_and(lower_exist, upper_exist)))
         return torch.where(count_equal==0, median_out_cons, median_in_cons)
 
+
 class GeometricMean(Operation):
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'GeometricMean':
         x_1d = to_1d(x[0])
+        x_1d = x_1d[x_1d!=MagicNumber]
         result = torch.exp(torch.mean(torch.log(x_1d)))
         return cls(result, error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         # Assume x is [1, n, 1]
         x = x[0]
-        size = x.size()[1]
+        size = torch.sum((x!=MagicNumber).float())
+        x = torch.where(x==MagicNumber, 1.0, x)
         return torch.abs((torch.log(self.result)*size)-torch.sum(torch.log(x)))<=size*torch.log(torch.tensor(1+self.error))
 
 
@@ -176,7 +186,7 @@ class Mode(Operation):
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Mode':
         x_1d = to_1d(x[0])
-
+        x_1d = x_1d[x_1d!=MagicNumber]
         # Here is traditional definition of Mode, can just put this num_error to be 0
         result = torch.tensor(mode_within(x_1d, 0))
         return cls(result, error)
@@ -184,6 +194,15 @@ class Mode(Operation):
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         # Assume x is [1, n, 1]
         x = x[0]
+        min_x = torch.min(x)
+        old_size = x.size()[1]
+        x = torch.where(x==MagicNumber, min_x-1, x)
+        count_equal = torch.sum((x==self.result).float())
+        result = torch.tensor([torch.logical_or(torch.sum((x==ele[0]).float())<=count_equal, min_x-1 ==ele[0]) for ele in x[0]])
+        return torch.sum(result) == old_size
+
+
+
         size = x.size()[1]
         count_equal = torch.sum((torch.abs(x-self.result)<=torch.abs(self.error*self.result)).float())
         _result = torch.tensor([
@@ -235,6 +254,7 @@ class PVariance(Operation):
 class Stdev(Operation):
     def __init__(self, x: torch.Tensor, error: float):
         x_1d = to_1d(x)
+        x_1d = x_1d[x_1d!=MagicNumber]
         self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
         result = torch.sqrt(torch.var(x_1d, correction = 1))
         super().__init__(result, error)
@@ -245,10 +265,12 @@ class Stdev(Operation):
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
-        size = x.size()[1]
-        x_mean_cons = torch.abs(torch.sum(x)-size*(self.data_mean))<=torch.abs(self.error*size*self.data_mean)
+        x_for_mean = torch.where(x==MagicNumber, 0.0, x)
+        size = torch.sum((x!=MagicNumber).float())
+        x_mean_cons = torch.abs(torch.sum(x_for_mean)-size*(self.data_mean))<=torch.abs(self.error*size*self.data_mean)
+        x_for_std = torch.where(x==MagicNumber, self.data_mean, x)
         return torch.logical_and(
-            torch.abs(torch.sum((x-self.data_mean)*(x-self.data_mean))-self.result*self.result*(size - 1))<=torch.abs(2*self.error*self.result*self.result*(size - 1)), x_mean_cons
+            torch.abs(torch.sum((x_for_std-self.data_mean)*(x_for_std-self.data_mean))-self.result*self.result*(size - 1))<=torch.abs(2*self.error*self.result*self.result*(size - 1)), x_mean_cons
         )
 
 
@@ -265,7 +287,7 @@ class Variance(Operation):
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
-        size = x.size()[1]
+        size = torch.sum((x!=MagicNumber).float())
         x_mean_cons = torch.abs(torch.sum(x)-size*(self.data_mean))<=torch.abs(self.error*size*self.data_mean)
         return torch.logical_and(
             torch.abs(torch.sum((x-self.data_mean)*(x-self.data_mean))-self.result*(size - 1))<=torch.abs(self.error*self.result*(size - 1)), x_mean_cons
@@ -349,12 +371,23 @@ def stacked_x(args: list[float]):
 
 class Regression(Operation):
     def __init__(self, xs: list[torch.Tensor], y: torch.Tensor, error: float):
-        x_1ds = [to_1d(i).tolist() for i in xs]
-        y_1d = to_1d(y).tolist()
+        # x_1ds = [to_1d(i).tolist() for i in xs]
+        x_1ds = [to_1d(i) for i in xs]
+        # print('xxxx: ', x_1ds)
+        fil_x_1ds=[]
+        for x_1 in x_1ds:
+            fil_x_1ds.append((x_1[x_1!=MagicNumber]).tolist())
+        x_1ds = fil_x_1ds
+        # print('fil xxx',fil_x_1ds)
+        # y_1d = to_1d(y).tolist()
+        y_1d = to_1d(y)
+        y_1d = (y_1d[y_1d!=MagicNumber]).tolist()
+        # print('yyy: ', y_1d)
 
         x_one = stacked_x(x_1ds)
         result_1d = np.matmul(np.matmul(np.linalg.inv(np.matmul(x_one.transpose(), x_one)), x_one.transpose()), y_1d)
         result = torch.tensor(result_1d, dtype = torch.float32).reshape(1, -1, 1)
+        print('result: ', result)
         super().__init__(result, error)
 
     @classmethod
@@ -366,7 +399,9 @@ class Regression(Operation):
     def ezkl(self, args: list[torch.Tensor]) -> IsResultPrecise:
          # infer y from the last parameter
         y = args[-1]
+        y = torch.where(y==MagicNumber, torch.tensor(0.0), y)
         x_one = torch.cat((*args[:-1], torch.ones_like(args[0])), dim=2)
+        x_one = torch.where((x_one[:,:,0] ==MagicNumber).unsqueeze(-1), torch.tensor([0.0]*x_one.size()[2]), x_one)
         x_t = torch.transpose(x_one, 1, 2)
         return torch.sum(torch.abs(x_t @ x_one @ self.result - x_t @ y)) <= self.error * torch.sum(torch.abs(x_t @ y))
 

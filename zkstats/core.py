@@ -45,7 +45,9 @@ def create_dummy(data_path: str, dummy_data_path: str) -> None:
     dummy_data ={}
     for col in data:
         # not use same value for every column to prevent something weird, like singular matrix
-        dummy_data[col] = np.round(np.random.uniform(1,30,len(data[col])),1).tolist()
+        min_col = min(data[col])
+        max_col = max(data[col])
+        dummy_data[col] = np.round(np.random.uniform(min_col,max_col,len(data[col])),1).tolist()
 
     json.dump(dummy_data, open(dummy_data_path, 'w'))
 
