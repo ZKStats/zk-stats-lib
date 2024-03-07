@@ -7,13 +7,7 @@ import torch
 from zkstats.ops import Mean, Median, GeometricMean, HarmonicMean, Mode, PStdev, PVariance, Stdev, Variance, Covariance, Correlation, Operation, Regression
 from zkstats.computation import IModel, IsResultPrecise
 
-from .helpers import compute, assert_result
-
-
-# Error tolerance between circuit and python implementation
-ERROR_CIRCUIT_DEFAULT = 0.01
-ERROR_CIRCUIT_STRICT = 0.0001
-ERROR_CIRCUIT_RELAXED = 0.1
+from .helpers import compute, assert_result, ERROR_CIRCUIT_DEFAULT, ERROR_CIRCUIT_STRICT, ERROR_CIRCUIT_RELAXED
 
 
 @pytest.mark.parametrize(

@@ -1,3 +1,4 @@
+from typing import Type, Callable
 import statistics
 import torch
 
@@ -17,9 +18,10 @@ from zkstats.ops import (
     Covariance,
     Correlation,
     Regression,
+    Operation
 )
 
-from .helpers import assert_result, compute
+from .helpers import assert_result, compute, ERROR_CIRCUIT_DEFAULT, ERROR_CIRCUIT_STRICT, ERROR_CIRCUIT_RELAXED
 
 
 def nested_computation(state: State, args: list[torch.Tensor]):
@@ -129,3 +131,67 @@ def test_nested_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Te
     assert isinstance(op_11, Mean)
     out_11 = statistics.mean([out_0, out_1, out_2, out_3, out_4, out_5, out_6, out_7, out_8, out_9, out_10.slope, out_10.intercept])
     assert_result(torch.tensor(out_11), op_11.result)
+
+
+@pytest.mark.parametrize(
+    "op_type, expected_func, error",
+    [
+        (State.mean, statistics.mean, ERROR_CIRCUIT_DEFAULT),
+        (State.median, statistics.median, ERROR_CIRCUIT_DEFAULT),
+        (State.geometric_mean, statistics.geometric_mean, ERROR_CIRCUIT_DEFAULT),
+        # Be more tolerant for HarmonicMean
+        (State.harmonic_mean, statistics.harmonic_mean, ERROR_CIRCUIT_RELAXED),
+        # Be less tolerant for Mode
+        (State.mode, statistics.mode, ERROR_CIRCUIT_STRICT),
+        (State.pstdev, statistics.pstdev, ERROR_CIRCUIT_DEFAULT),
+        (State.pvariance, statistics.pvariance, ERROR_CIRCUIT_DEFAULT),
+        (State.stdev, statistics.stdev, ERROR_CIRCUIT_DEFAULT),
+        (State.variance, statistics.variance, ERROR_CIRCUIT_DEFAULT),
+    ]
+)
+def test_computation_with_where_1d(tmp_path, error, column_0, op_type: Callable[[Operation, torch.Tensor], torch.Tensor], expected_func: Callable[[list[float]], float], scales):
+    column = column_0
+    def condition(_x: torch.Tensor):
+        return _x < 4
+
+    def where_and_op(state: State, args: list[torch.Tensor]):
+        x = args[0]
+        return op_type(state, state.where(condition(x), x))
+
+    state, model = computation_to_model(where_and_op, error)
+    compute(tmp_path, [column], model, scales)
+
+    res_op = state.ops[-1]
+    filtered = column[condition(column)]
+    expected_res = expected_func(filtered.tolist())
+    assert_result(res_op.result.data, expected_res)
+
+
+@pytest.mark.parametrize(
+    "op_type, expected_func, error",
+    [
+        (State.covariance, statistics.covariance, ERROR_CIRCUIT_RELAXED),
+        (State.correlation, statistics.correlation, ERROR_CIRCUIT_RELAXED),
+    ]
+)
+def test_computation_with_where_2d(tmp_path, error, column_0, column_1, op_type: Callable[[Operation, torch.Tensor], torch.Tensor], expected_func: Callable[[list[float]], float], scales):
+    def condition_0(_x: torch.Tensor):
+        return _x > 4
+
+    def where_and_op(state: State, args: list[torch.Tensor]):
+        x = args[0]
+        y = args[1]
+        condition_x = condition_0(x)
+        filtered_x = state.where(condition_x, x)
+        filtered_y = state.where(condition_x, y)
+        return op_type(state, filtered_x, filtered_y)
+
+    state, model = computation_to_model(where_and_op, error)
+    compute(tmp_path, [column_0, column_1], model, scales)
+
+    res_op = state.ops[-1]
+    condition_x = condition_0(column_0)
+    filtered_x = column_0[condition_x]
+    filtered_y = column_1[condition_x]
+    expected_res = expected_func(filtered_x.tolist(), filtered_y.tolist())
+    assert_result(res_op.result.data, expected_res)

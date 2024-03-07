@@ -25,28 +25,27 @@ class Operation(ABC):
 
 class Where(Operation):
     @classmethod
-    def create(cls, x:list[torch.Tensor], error: float) -> 'Where':
+    def create(cls, x: list[torch.Tensor], error: float) -> 'Where':
         # here error is trivial, but here to conform to other functions
         return cls(torch.where(x[0],x[1], MagicNumber ),error)
     def ezkl(self, x:list[torch.Tensor]) -> IsResultPrecise:
         bool_array = torch.logical_or(x[1]==self.result, torch.logical_and(torch.logical_not(x[0]), self.result==MagicNumber))
         # print('sellll: ', self.result)
         return torch.sum(bool_array.float())==x[1].size()[1]
-       
+
 
 class Mean(Operation):
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Mean':
         # support where statement, hopefully we can use 'nan' once onnx.isnan() is supported
         return cls(torch.mean(x[0][x[0]!=MagicNumber]), error)
-        # return cls(torch.mean(x[0]), error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
         size = torch.sum((x!=MagicNumber).float())
         x = torch.where(x==MagicNumber, 0.0, x)
         return torch.abs(torch.sum(x)-size*self.result)<=torch.abs(self.error*self.result*size)
-    
+
 
 def to_1d(x: torch.Tensor) -> torch.Tensor:
     x_shape = x.size()
@@ -88,7 +87,7 @@ class Median(Operation):
         count_less = torch.sum((x < self.result).float())-(old_size-size)
         count_equal = torch.sum((x==self.result).float())
         half_size = torch.floor(torch.div(size, 2))
-        
+
         less_cons = count_less<half_size+size%2
         more_cons = count_less+count_equal>half_size
 
@@ -163,10 +162,10 @@ def mode_within(data_array: torch.Tensor, error: float) -> torch.Tensor:
     # @classmethod
     # def create(cls, x: list[torch.Tensor], error: float) -> 'Mode':
     #     x_1d = to_1d(x[0])
-    #     #  Mode has no result_error, just num_error which is the 
-    #     # deviation that two numbers are considered the same. (Make sense because 
+    #     #  Mode has no result_error, just num_error which is the
+    #     # deviation that two numbers are considered the same. (Make sense because
     #     # if some dataset has all different data, mode will be trivial if this is not the case)
-    #     # This value doesn't depend on any scale, but on the dataset itself, and the intention 
+    #     # This value doesn't depend on any scale, but on the dataset itself, and the intention
     #     # the evaluator. For example 0.01 means that data is counted as the same within 1% value range.
 
     #     # If wanting the strict definition of Mode, can just put this error to be 0
@@ -183,7 +182,7 @@ def mode_within(data_array: torch.Tensor, error: float) -> torch.Tensor:
     #         for ele in x[0]
     #     ], dtype = torch.float32)
     #     return torch.sum(_result) == size
-    
+
 
 class Mode(Operation):
     @classmethod
@@ -297,7 +296,7 @@ class Variance(Operation):
             torch.abs(torch.sum((x_fil_mean-self.data_mean)*(x_fil_mean-self.data_mean))-self.result*(size - 1))<=torch.abs(self.error*self.result*(size - 1)), x_mean_cons
         )
 
-        
+
 
 
 class Covariance(Operation):
@@ -344,7 +343,7 @@ def covariance_for_corr(x_fil_mean: torch.Tensor,y_fil_mean: torch.Tensor,size_x
         return (
             torch.abs(torch.sum((x_fil_mean-x_mean)*(y_fil_mean-y_mean))-(size_x-1)*cov)<error*cov*(size_x-1)
         , cov)
-    
+
 
 class Correlation(Operation):
     def __init__(self, x: torch.Tensor, y: torch.Tensor, error: float):

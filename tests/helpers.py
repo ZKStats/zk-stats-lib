@@ -10,6 +10,11 @@ from zkstats.computation import IModel
 
 DEFAULT_POSSIBLE_SCALES = list(range(20))
 
+# Error tolerance between circuit and python implementation
+ERROR_CIRCUIT_DEFAULT = 0.01
+ERROR_CIRCUIT_STRICT = 0.0001
+ERROR_CIRCUIT_RELAXED = 0.1
+
 
 def data_to_file(data_path: Path, data: list[torch.Tensor]) -> dict[str, list]:
     column_names = [f"columns_{i}" for i in range(len(data))]
