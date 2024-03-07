@@ -126,13 +126,16 @@ class HarmonicMean(Operation):
     @classmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'HarmonicMean':
         x_1d = to_1d(x[0])
+        x_1d = x_1d[x_1d!=MagicNumber]
         result = torch.div(1.0,torch.mean(torch.div(1.0, x_1d)))
         return cls(result, error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         # Assume x is [1, n, 1]
         x = x[0]
-        size = x.size()[1]
+        size = torch.sum((x!=MagicNumber).float())
+        # just make it really big so that 1/x goes to zero for element that gets filtered out
+        x = torch.where(x==MagicNumber, x*x, x)
         return torch.abs((self.result*torch.sum(torch.div(1.0, x))) - size)<=torch.abs(self.error*size)
 
 
@@ -202,18 +205,10 @@ class Mode(Operation):
         return torch.sum(result) == old_size
 
 
-
-        size = x.size()[1]
-        count_equal = torch.sum((torch.abs(x-self.result)<=torch.abs(self.error*self.result)).float())
-        _result = torch.tensor([
-            torch.sum((torch.abs(x-ele[0])<=torch.abs(self.error*ele[0])).float())<= count_equal
-            for ele in x[0]
-        ], dtype = torch.float32)
-        return torch.sum(_result) == size
-
 class PStdev(Operation):
     def __init__(self, x: torch.Tensor, error: float):
         x_1d = to_1d(x)
+        x_1d = x_1d[x_1d!=MagicNumber]
         self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
         result = torch.sqrt(torch.var(x_1d, correction = 0))
         super().__init__(result, error)
@@ -224,16 +219,19 @@ class PStdev(Operation):
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
-        size = x.size()[1]
-        x_mean_cons = torch.abs(torch.sum(x)-size*(self.data_mean))<=torch.abs(self.error*size*self.data_mean)
+        x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
+        size = torch.sum((x!=MagicNumber).float())
+        x_mean_cons = torch.abs(torch.sum(x_fil_0)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
+        x_fil_mean = torch.where(x==MagicNumber, self.data_mean, x)
         return torch.logical_and(
-            torch.abs(torch.sum((x-self.data_mean)*(x-self.data_mean))-self.result*self.result*size)<=torch.abs(2*self.error*self.result*self.result*size),x_mean_cons
+            torch.abs(torch.sum((x_fil_mean-self.data_mean)*(x_fil_mean-self.data_mean))-self.result*self.result*size)<=torch.abs(2*self.error*self.result*self.result*size),x_mean_cons
         )
 
 
 class PVariance(Operation):
     def __init__(self, x: torch.Tensor, error: float):
         x_1d = to_1d(x)
+        x_1d = x_1d[x_1d!=MagicNumber]
         self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
         result = torch.var(x_1d, correction = 0)
         super().__init__(result, error)
@@ -244,11 +242,14 @@ class PVariance(Operation):
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
-        size = x.size()[1]
-        x_mean_cons = torch.abs(torch.sum(x)-size*(self.data_mean))<=torch.abs(self.error*size*self.data_mean)
+        x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
+        size = torch.sum((x!=MagicNumber).float())
+        x_mean_cons = torch.abs(torch.sum(x_fil_0)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
+        x_fil_mean = torch.where(x==MagicNumber, self.data_mean, x)
         return torch.logical_and(
-            torch.abs(torch.sum((x-self.data_mean)*(x-self.data_mean))-self.result*size)<=torch.abs(self.error*self.result*size), x_mean_cons
+            torch.abs(torch.sum((x_fil_mean-self.data_mean)*(x_fil_mean-self.data_mean))-self.result*size)<=torch.abs(self.error*self.result*size), x_mean_cons
         )
+
 
 
 class Stdev(Operation):
@@ -265,18 +266,19 @@ class Stdev(Operation):
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
-        x_for_mean = torch.where(x==MagicNumber, 0.0, x)
+        x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
         size = torch.sum((x!=MagicNumber).float())
-        x_mean_cons = torch.abs(torch.sum(x_for_mean)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
-        x_for_std = torch.where(x==MagicNumber, self.data_mean, x)
+        x_mean_cons = torch.abs(torch.sum(x_fil_0)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
+        x_fil_mean = torch.where(x==MagicNumber, self.data_mean, x)
         return torch.logical_and(
-            torch.abs(torch.sum((x_for_std-self.data_mean)*(x_for_std-self.data_mean))-self.result*self.result*(size - 1))<=torch.abs(2*self.error*self.result*self.result*(size - 1)), x_mean_cons
+            torch.abs(torch.sum((x_fil_mean-self.data_mean)*(x_fil_mean-self.data_mean))-self.result*self.result*(size - 1))<=torch.abs(2*self.error*self.result*self.result*(size - 1)), x_mean_cons
         )
 
 
 class Variance(Operation):
     def __init__(self, x: torch.Tensor, error: float):
         x_1d = to_1d(x)
+        x_1d = x_1d[x_1d!=MagicNumber]
         self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
         result = torch.var(x_1d, correction = 1)
         super().__init__(result, error)
@@ -287,11 +289,15 @@ class Variance(Operation):
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
+        x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
         size = torch.sum((x!=MagicNumber).float())
-        x_mean_cons = torch.abs(torch.sum(x)-size*(self.data_mean))<=torch.abs(self.error*size*self.data_mean)
+        x_mean_cons = torch.abs(torch.sum(x_fil_0)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
+        x_fil_mean = torch.where(x==MagicNumber, self.data_mean, x)
         return torch.logical_and(
-            torch.abs(torch.sum((x-self.data_mean)*(x-self.data_mean))-self.result*(size - 1))<=torch.abs(self.error*self.result*(size - 1)), x_mean_cons
+            torch.abs(torch.sum((x_fil_mean-self.data_mean)*(x_fil_mean-self.data_mean))-self.result*(size - 1))<=torch.abs(self.error*self.result*(size - 1)), x_mean_cons
         )
+
+        
 
 
 class Covariance(Operation):
@@ -315,34 +321,37 @@ class Covariance(Operation):
 
     def ezkl(self, args: list[torch.Tensor]) -> IsResultPrecise:
         x, y = args[0], args[1]
-        size_x = x.size()[1]
-        size_y = y.size()[1]
-        x_mean_cons = torch.abs(torch.sum(x)-size_x*(self.x_mean))<=torch.abs(self.error*size_x*self.x_mean)
-        y_mean_cons = torch.abs(torch.sum(y)-size_y*(self.y_mean))<=torch.abs(self.error*size_y*self.y_mean)
+        x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
+        y_fil_0 = torch.where(y==MagicNumber, 0.0, y)
+        size_x = torch.sum((x!=MagicNumber).float())
+        size_y = torch.sum((y!=MagicNumber).float())
+        x_mean_cons = torch.abs(torch.sum(x_fil_0)-size_x*(self.x_mean))<=torch.abs(self.error*self.x_mean*size_x)
+        y_mean_cons = torch.abs(torch.sum(y_fil_0)-size_y*(self.y_mean))<=torch.abs(self.error*self.y_mean*size_y)
+        x_fil_mean = torch.where(x==MagicNumber, self.x_mean, x)
+        # only x_fil_mean is enough, no need for y_fil_mean since it will multiply 0 anyway
         return torch.logical_and(
-            torch.logical_and(x_mean_cons,y_mean_cons),
-            torch.abs(torch.sum((x-self.x_mean)*(y-self.y_mean))-(size_x-1)*self.result)<self.error*(size_x-1)*self.result
+            torch.logical_and(size_x==size_y,torch.logical_and(x_mean_cons,y_mean_cons)),
+            torch.abs(torch.sum((x_fil_mean-self.x_mean)*(y-self.y_mean))-(size_x-1)*self.result)<self.error*self.result*(size_x-1)
         )
 
-
-def stdev(x: torch.Tensor, x_std: torch.Tensor, x_mean: torch.Tensor, error: float) -> torch.Tensor:
-    size_x = x.size()[1]
-    x_mean_cons = torch.abs(torch.sum(x)-size_x*(x_mean))<=torch.abs(error*size_x*x_mean)
-    return (torch.logical_and(torch.abs(torch.sum((x-x_mean)*(x-x_mean))-x_std*x_std*(size_x-1))<=torch.abs(2*error*x_std*x_std*(size_x-1)),x_mean_cons),x_std)
-
-
-def covariance(x: torch.Tensor, y: torch.Tensor, cov: torch.Tensor, x_mean: torch.Tensor, y_mean: torch.Tensor, error: float) -> torch.Tensor:
-    size_x = x.size()[1]
-    size_y = y.size()[1]
-    x_mean_cons = torch.abs(torch.sum(x)-size_x*(x_mean))<=torch.abs(error*size_x*(x_mean))
-    y_mean_cons = torch.abs(torch.sum(y)-size_y*(y_mean))<=torch.abs(error*size_y*(y_mean))
-    return (torch.logical_and(torch.logical_and(x_mean_cons,y_mean_cons), torch.abs(torch.sum((x-x_mean)*(y-y_mean))-(size_x-1)*(cov))<error*(size_x-1)*(cov)), cov)
-
+# refer other constraints to correlation function, not put here since will be repetitive
+def stdev_for_corr(x_fil_mean:torch.Tensor,size_x:torch.Tensor, x_std: torch.Tensor, x_mean: torch.Tensor, error: float) -> torch.Tensor:
+    return (
+            torch.abs(torch.sum((x_fil_mean-x_mean)*(x_fil_mean-x_mean))-x_std*x_std*(size_x - 1))<=torch.abs(2*error*x_std*x_std*(size_x - 1))
+        , x_std)
+# refer other constraints to correlation function, not put here since will be repetitive
+def covariance_for_corr(x_fil_mean: torch.Tensor,y_fil_mean: torch.Tensor,size_x:torch.Tensor, size_y:torch.Tensor, cov: torch.Tensor, x_mean: torch.Tensor, y_mean: torch.Tensor, error: float) -> torch.Tensor:
+        return (
+            torch.abs(torch.sum((x_fil_mean-x_mean)*(y_fil_mean-y_mean))-(size_x-1)*cov)<error*cov*(size_x-1)
+        , cov)
+    
 
 class Correlation(Operation):
     def __init__(self, x: torch.Tensor, y: torch.Tensor, error: float):
         x_1d = to_1d(x)
+        x_1d = x_1d[x_1d!=MagicNumber]
         y_1d = to_1d(y)
+        y_1d = y_1d[y_1d!=MagicNumber]
         x_1d_list = x_1d.tolist()
         y_1d_list = y_1d.tolist()
         self.x_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
@@ -360,11 +369,21 @@ class Correlation(Operation):
 
     def ezkl(self, args: list[torch.Tensor]) -> IsResultPrecise:
         x, y = args[0], args[1]
-        bool1, cov = covariance(x, y, self.cov, self.x_mean, self.y_mean, self.error)
-        bool2, x_std = stdev(x, self.x_std, self.x_mean, self.error)
-        bool3, y_std = stdev(y, self.y_std, self.y_mean, self.error)
+        x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
+        y_fil_0 = torch.where(y==MagicNumber, 0.0, y)
+        size_x = torch.sum((x!=MagicNumber).float())
+        size_y = torch.sum((y!=MagicNumber).float())
+        x_mean_cons = torch.abs(torch.sum(x_fil_0)-size_x*(self.x_mean))<=torch.abs(self.error*self.x_mean*size_x)
+        y_mean_cons = torch.abs(torch.sum(y_fil_0)-size_y*(self.y_mean))<=torch.abs(self.error*self.y_mean*size_y)
+        x_fil_mean = torch.where(x==MagicNumber, self.x_mean, x)
+        y_fil_mean = torch.where(y==MagicNumber, self.y_mean, y)
+
+        miscel_cons = torch.logical_and(size_x==size_y, torch.logical_and(x_mean_cons, y_mean_cons))
+        bool1, cov = covariance_for_corr(x_fil_mean,y_fil_mean,size_x, size_y, self.cov, self.x_mean, self.y_mean, self.error)
+        bool2, x_std = stdev_for_corr( x_fil_mean, size_x, self.x_std, self.x_mean, self.error)
+        bool3, y_std = stdev_for_corr( y_fil_mean, size_y, self.y_std, self.y_mean, self.error)
         bool4 = torch.abs(cov - self.result*x_std*y_std)<=self.error*cov
-        return torch.logical_and(torch.logical_and(bool1, bool2),torch.logical_and(bool3, bool4))
+        return torch.logical_and(torch.logical_and(torch.logical_and(bool1, bool2),torch.logical_and(bool3, bool4)), miscel_cons)
 
 
 def stacked_x(args: list[float]):
@@ -373,18 +392,14 @@ def stacked_x(args: list[float]):
 
 class Regression(Operation):
     def __init__(self, xs: list[torch.Tensor], y: torch.Tensor, error: float):
-        # x_1ds = [to_1d(i).tolist() for i in xs]
         x_1ds = [to_1d(i) for i in xs]
-        # print('xxxx: ', x_1ds)
         fil_x_1ds=[]
         for x_1 in x_1ds:
             fil_x_1ds.append((x_1[x_1!=MagicNumber]).tolist())
         x_1ds = fil_x_1ds
-        # print('fil xxx',fil_x_1ds)
-        # y_1d = to_1d(y).tolist()
+
         y_1d = to_1d(y)
         y_1d = (y_1d[y_1d!=MagicNumber]).tolist()
-        # print('yyy: ', y_1d)
 
         x_one = stacked_x(x_1ds)
         result_1d = np.matmul(np.matmul(np.linalg.inv(np.matmul(x_one.transpose(), x_one)), x_one.transpose()), y_1d)
