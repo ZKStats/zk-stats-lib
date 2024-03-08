@@ -45,7 +45,9 @@ def create_dummy(data_path: str, dummy_data_path: str) -> None:
     dummy_data ={}
     for col in data:
         # not use same value for every column to prevent something weird, like singular matrix
-        dummy_data[col] = np.round(np.random.uniform(1,30,len(data[col])),1).tolist()
+        min_col = min(data[col])
+        max_col = max(data[col])
+        dummy_data[col] = np.round(np.random.uniform(min_col,max_col,len(data[col])),1).tolist()
 
     json.dump(dummy_data, open(dummy_data_path, 'w'))
 
@@ -250,12 +252,10 @@ def verifier_verify(proof_path: str, settings_path: str, vk_path: str, selected_
   # - is a tuple (is_in_error, result)
   # - is_valid is True
   # Sanity check
-  # is_in_error = ezkl.vecu64_to_float(outputs[0], output_scales[0])
   is_in_error = ezkl.felt_to_float(outputs[0], output_scales[0])
   assert is_in_error == 1.0, f"result is not within error"
   result_arr = []
   for index in range(len(outputs)-1):
-    # result_arr.append(ezkl.vecu64_to_float(outputs[index+1], output_scales[1]))
     result_arr.append(ezkl.felt_to_float(outputs[index+1], output_scales[1]))
   return result_arr
 
