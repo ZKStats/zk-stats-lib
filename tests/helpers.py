@@ -4,7 +4,7 @@ from pathlib import Path
 
 import torch
 
-from zkstats.core import prover_gen_settings, setup, prover_gen_proof, verifier_verify, get_data_commitment_maps
+from zkstats.core import prover_gen_settings, setup, prover_gen_proof, verifier_verify, generate_data_commitment
 from zkstats.computation import IModel
 
 
@@ -43,6 +43,7 @@ def compute(
     pk_path = basepath / "model.pk"
     vk_path = basepath / "model.vk"
     data_path = basepath / "data.json"
+    data_commitment_path = basepath / "commitments.json"
 
     column_to_data = data_to_file(data_path, data)
     # If selected_columns_params is None, select all columns
@@ -60,7 +61,7 @@ def compute(
         scales = scales_params
         scales_for_commitments = scales_params
 
-    commitment_maps = get_data_commitment_maps(data_path, scales_for_commitments)
+    generate_data_commitment(data_path, scales_for_commitments, data_commitment_path)
 
     prover_gen_settings(
         data_path=data_path,
@@ -94,7 +95,7 @@ def compute(
         str(settings_path),
         str(vk_path),
         selected_columns,
-        commitment_maps,
+        data_commitment_path,
     )
 
 
