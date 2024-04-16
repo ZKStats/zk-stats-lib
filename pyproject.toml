@@ -8,13 +8,20 @@ authors = ["Jern Kunpittaya", "Kevin Chia"]
 python = "^3.9"
 ezkl = "9.1.0"
 torch = "^2.1.1"
-requests = "^2.31.0"
 scipy = "^1.11.4"
 numpy = "^1.26.2"
 matplotlib = "^3.8.2"
 statistics = "^1.0.3"
 onnx = "^1.15.0"
 click = "^8.1.7"
+tensorflow = ">=2.16.1"
+# onnx2keras only
+onnxruntime = "^1.17.3"
+onnx-simplifier = "^0.4.36"
+opencv-python = "^4.9.0.80"
+# keras2circom only
+keras = "^3.2.1"
+docopt = ">=0.6.2"
 
 [tool.poetry.dev-dependencies]
 ipykernel = "^6.27.1"
