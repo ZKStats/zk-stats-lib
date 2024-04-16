@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from pathlib import Path
 from typing import Type
 
@@ -7,10 +8,11 @@ import torch
 import torch.nn as nn
 
 
-import sys
-# add .. to the PYTHONPATH
+
+# add .. to the PYTHONPATH to make the import `onnx2circom` work
 file_path = Path(__file__).resolve()
 sys.path.append(str(file_path.parent.parent))
+
 from onnx2circom import torch_model_to_onnx, onnx_to_circom
 
 #

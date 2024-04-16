@@ -1,10 +1,12 @@
-import os
 from pathlib import Path
 from typing import Type, Union
 import tempfile
 
 import torch
 import torch.nn as nn
+
+from onnx2keras.converter import onnx_converter
+from keras2circom.keras2circom import circom, transpiler
 
 
 ONNX_2_CIRCOM_PROJECT_ROOT = Path(__file__).parent
@@ -32,15 +34,24 @@ def torch_model_to_onnx(model_type: Type[nn.Module], data: torch.Tensor, output_
 
 
 def onnx_to_keras(onnx_path: Path, generated_keras_path: Path):
-    onnx2circom_path = ONNX_2_KERAS_PROJECT_ROOT.parent
-    executable = ONNX_2_KERAS_PROJECT_ROOT / "converter.py"
-    res = os.system(f"PYTHONPATH={onnx2circom_path} python {executable} --weights {onnx_path} --outpath {generated_keras_path.parent} --formats 'keras'")
-    if res != 0:
-        raise ValueError(f"Failed to convert onnx to keras. Error code: {res}")
+    # Ref: https://github.com/JernKunpittaya/onnx2keras/blob/5cea7118afd4a906e9d604b908aae92f615b4eae/converter.py#L77-L90
+    onnx_converter(
+        onnx_model_path=str(onnx_path),
+        output_path=generated_keras_path.parent,
+        target_formats=['keras'],
+        need_simplify=True,  # default
+        input_node_names=None,  # default
+        output_node_names=None,  # default
+        native_groupconv=False,  # default
+        weight_quant=False,  # default
+        int8_model=False,  # default
+        int8_mean=[123.675, 116.28, 103.53],  # default
+        int8_std=[58.395, 57.12, 57.375],  # default
+        image_root=None  # default
+    )
 
 
 def keras_to_circom(keras_path: Path, generated_circom_path: Path):
-    from keras2circom.keras2circom import circom, transpiler
     # Ref: https://github.com/JernKunpittaya/keras2circom/blob/42dc97e4ce0543dde68b37e9b220a29bf88be84d/main.py#L21
     circom.dir_parse(
         CIRCOMLIB_ML_CIRCUITS_PATH,
