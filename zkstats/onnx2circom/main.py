@@ -64,17 +64,18 @@ def test():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('onnx_file', type=str, help='onnx model path')
-    parser.add_argument('-o', '--out_dir', type=str, help='output directory for circom', default=None)
+    parser.add_argument('-o', '--circom_path', type=str, help='output path for circom', default=None)
     args = parser.parse_args()
     onnx_path = Path(args.onnx_file)
-    if args.out_dir is not None:
-        circom_dir = Path(args.out_dir)
+    if args.circom_path is not None:
+        circom_path = Path(args.circom_path)
     else:
-        circom_dir = onnx_path.parent
-    circom_path = circom_dir / f"{onnx_path.stem}.circom"
+        circom_path = onnx_path.parent / f"{onnx_path.stem}.circom"
     onnx_to_circom(onnx_path, circom_path)
     # Compiling with circom compiler
-    os.system(f"circom {circom_path}")
+    code = os.system(f"circom {circom_path}")
+    if code != 0:
+        raise ValueError(f"Failed to compile circom. Error code: {code}")
 
 
 if __name__ == "__main__":
