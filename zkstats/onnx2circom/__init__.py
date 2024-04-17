@@ -1,36 +1,15 @@
 from pathlib import Path
-from typing import Type, Union
+from typing import Union
 import tempfile
 
-import torch
-import torch.nn as nn
-
-from onnx2keras.converter import onnx_converter
-from keras2circom.keras2circom import circom, transpiler
+from .onnx2keras.converter import onnx_converter
+from .keras2circom.keras2circom import circom, transpiler
 
 
 ONNX_2_CIRCOM_PROJECT_ROOT = Path(__file__).parent
 ONNX_2_KERAS_PROJECT_ROOT = ONNX_2_CIRCOM_PROJECT_ROOT / "onnx2keras"
 
 CIRCOMLIB_ML_CIRCUITS_PATH = ONNX_2_CIRCOM_PROJECT_ROOT / "circomlib-ml" / "circuits"
-
-
-def torch_model_to_onnx(model_type: Type[nn.Module], data: torch.Tensor, output_onnx_path: Path):
-    model = model_type()
-    input_shape = data.shape
-    print("!@# data: ", data)
-    print("!@# input_shape: ", input_shape)
-
-    torch.onnx.export(model,               # model being run
-                        data,                   # model input (or a tuple for multiple inputs)
-                        output_onnx_path,            # where to save the model (can be a file or file-like object)
-                        export_params=True,        # store the trained parameter weights inside the model file
-                        opset_version=11,          # the ONNX version to export the model to
-                        do_constant_folding=True,  # whether to execute constant folding for optimization
-                        input_names = ['input'],   # the model's input names
-                        output_names = ['output'], # the model's output names
-                        dynamic_axes={'input' : {0 : 'batch_size'},    # variable length axes
-                                        'output' : {0 : 'batch_size'}})
 
 
 def onnx_to_keras(onnx_path: Path, generated_keras_path: Path):
