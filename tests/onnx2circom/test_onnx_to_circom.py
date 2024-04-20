@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from typing import Type
@@ -15,9 +16,14 @@ from zkstats.onnx2circom.onnx2keras.layers import (
     TFLog,
     TFReduceMean,
 )
+from zkstats.arithc_to_bristol import parse_arithc_json
+from zkstats.backends.mpspdz import generate_mpspdz_circuit, run_mpspdz_circuit
 
 
 supported_operations = [TFReduceSum, TFLog, TFReduceMean]
+
+CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/circom-2-arithc')
+MP_SPDZ_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/MP-SPDZ')
 
 
 def test_onnx_to_circom(tmp_path):
@@ -25,13 +31,21 @@ def test_onnx_to_circom(tmp_path):
         [10, 40, 50],
         dtype = torch.float32,
     ).reshape(1, -1, 1)
+    data = torch.tensor(
+        [32],
+        dtype = torch.float32,
+    ).reshape(1, -1, 1)
 
-    class SumModel(nn.Module):
+    class Model(nn.Module):
         def forward(self, x):
-            return torch.sum(x)
+            # return torch.sum(x)
+            # return torch.mean(x) + torch.sum(x)
+            # return torch.mean(x) + torch.mean(x)
+            # return torch.mean(x)
+            # return torch.sum(x)
+            return torch.log(x)
 
-    compile_and_check(SumModel, data, tmp_path)
-
+    compile_and_check(Model, data, tmp_path)
 
 
 def run_torch_model(model_type: Type[nn.Module], data: torch.Tensor) -> torch.Tensor:
@@ -78,8 +92,12 @@ def torch_model_to_onnx(model_type: Type[nn.Module], data: torch.Tensor, output_
 def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path):
     onnx_path = tmp_path / 'model.onnx'
     out_dir_path = tmp_path / 'out'
-    keras_path = onnx_path.parent / f"{onnx_path.stem}.keras"
-    circom_path = out_dir_path / f"{keras_path.stem}.circom"
+    model_name = onnx_path.stem
+    keras_path = onnx_path.parent / f"{model_name}.keras"
+    assert onnx_path.stem == keras_path.stem
+    print(f"!@# {keras_path=}")
+    circom_path = out_dir_path / f"{model_name}.circom"
+    print(f"!@# {circom_path=}")
 
     print("Running torch model...")
     output_torch = run_torch_model(model_type, data)
@@ -96,9 +114,52 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     print("!@# output_keras=", output_keras)
     assert torch.allclose(output_torch, output_keras, atol=1e-6), "The output of torch model and keras model are different."
 
-    # Compiling with circom compiler
-    code = os.system(f"circom {circom_path}")
+    arithc_path = out_dir_path / f"{model_name}.json"
+    # Compile with circom-2-arithc compiler
+    code = os.system(f"cd {CIRCOM_2_ARITHC_PROJECT_ROOT} && ./target/release/circom --input {circom_path} --output {out_dir_path}")
     if code != 0:
         raise ValueError(f"Failed to compile circom. Error code: {code}")
+    arithc_path = out_dir_path / f"{model_name}.json"
+    assert arithc_path.exists() is True, f"The output file {arithc_path} does not exist."
 
-    # TODO: Should run circom (like using circom tester) instead of just running keras model
+    print("!@# circom_path=", circom_path)
+    print("!@# arithc_path=", arithc_path)
+
+    bristol_path = out_dir_path / f"{model_name}.txt"
+    circuit_info_path = out_dir_path / f"{model_name}.circuit_info.json"
+    parse_arithc_json(arithc_path, bristol_path, circuit_info_path)
+    assert bristol_path.exists() is True, f"The output file {bristol_path} does not exist."
+    assert circuit_info_path.exists() is True, f"The output file {circuit_info_path} does not exist."
+    print("!@# bristol_path=", bristol_path)
+    print("!@# circuit_info_path=", circuit_info_path)
+
+    # Mark every input as from 0
+    with open(circuit_info_path, 'r') as f:
+        circuit_info = json.load(f)
+    input_name_to_wire_index = circuit_info['input_name_to_wire_index']
+    input_names = list(input_name_to_wire_index.keys())
+    print("!@# input_names=", input_names)
+
+    # TODO: This should come from users. Here we just set up a config json
+    # for convenience (which input is from which party). Now just put every input to party 0.
+    # Assume the input data is a 1-d tensor
+    user_config_path = MP_SPDZ_PROJECT_ROOT / f"Configs/{model_name}.json"
+    with open(user_config_path, 'w') as f:
+        json.dump({"inputs_from": {
+            "0": input_names,
+        }}, f, indent=4)
+
+    print("!@# user_config_path=", user_config_path)
+
+    # Prepare data for party 0
+    data_list = data.reshape(-1)
+    input_0_path = MP_SPDZ_PROJECT_ROOT / 'Player-Data/Input-P0-0'
+    with open(input_0_path, 'w') as f:
+        # TODO: change int to float
+        f.write(' '.join([str(int(x)) for x in data_list.tolist()]))
+
+    # Run MP-SPDZ
+    mpc_circuit_path = generate_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, bristol_path, circuit_info_path, user_config_path)
+    print(f"Running mp-spdz circuit {mpc_circuit_path}...")
+    run_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, mpc_circuit_path)
+    # TODO: parse output from MP-SPDZ and compare with torch output
