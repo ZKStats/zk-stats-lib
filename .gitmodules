@@ -4,6 +4,3 @@
 [submodule "zkstats/onnx2circom/keras2circom"]
 	path = zkstats/onnx2circom/keras2circom
 	url = git@github.com:mhchia/keras2circom.git
-[submodule "zkstats/onnx2circom/circomlib-ml"]
-	path = zkstats/onnx2circom/circomlib-ml
-	url = git@github.com:mhchia/circomlib-ml.git

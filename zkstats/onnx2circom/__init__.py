@@ -9,7 +9,7 @@ from .keras2circom.keras2circom import circom, transpiler
 ONNX_2_CIRCOM_PROJECT_ROOT = Path(__file__).parent
 ONNX_2_KERAS_PROJECT_ROOT = ONNX_2_CIRCOM_PROJECT_ROOT / "onnx2keras"
 
-CIRCOMLIB_ML_CIRCUITS_PATH = ONNX_2_CIRCOM_PROJECT_ROOT / "circomlib-ml" / "circuits"
+MPC_CIRCOM_PATH = ONNX_2_CIRCOM_PROJECT_ROOT / "mpc.circom"
 
 
 def onnx_to_keras(onnx_path: Path, generated_keras_path: Path):
@@ -33,11 +33,11 @@ def onnx_to_keras(onnx_path: Path, generated_keras_path: Path):
 def keras_to_circom(keras_path: Path, generated_circom_path: Path):
     # Ref: https://github.com/JernKunpittaya/keras2circom/blob/42dc97e4ce0543dde68b37e9b220a29bf88be84d/main.py#L21
     # circom.dir_parse(
-    #     CIRCOMLIB_ML_CIRCUITS_PATH,
+    #     MPC_CIRCOM_PATH,
     #     # TODO: should we skip them?
     #     skips=['util.circom', 'circomlib-matrix', 'circomlib', 'crypto'],
     # )
-    circom.file_parse(CIRCOMLIB_ML_CIRCUITS_PATH / "mpc.circom")
+    circom.file_parse(MPC_CIRCOM_PATH)
     # transpiler.transpile(args['<model.h5>'], args['--output'], args['--raw'], args['--decimals'])
     # keras2circom_output_dir = Path(tempfile.mkdtemp())
     keras2circom_output_dir = generated_circom_path.parent
