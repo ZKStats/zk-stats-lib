@@ -1,15 +1,11 @@
 from pathlib import Path
 from typing import Union
-import tempfile
 
 from .onnx2keras.converter import onnx_converter
 from .keras2circom.keras2circom import circom, transpiler
 
 
-ONNX_2_CIRCOM_PROJECT_ROOT = Path(__file__).parent
-ONNX_2_KERAS_PROJECT_ROOT = ONNX_2_CIRCOM_PROJECT_ROOT / "onnx2keras"
-
-MPC_CIRCOM_PATH = ONNX_2_CIRCOM_PROJECT_ROOT / "mpc.circom"
+MPC_CIRCOM_PATH = Path(__file__).parent / "mpc.circom"
 
 
 def onnx_to_keras(onnx_path: Path, generated_keras_path: Path):
