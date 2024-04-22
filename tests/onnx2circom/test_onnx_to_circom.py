@@ -12,8 +12,8 @@ from zkstats.backends.mpspdz import generate_mpspdz_circuit, run_mpspdz_circuit
 
 
 # NOTE: Change the path to your own path
-CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/circom-2-arithc')
-MP_SPDZ_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/MP-SPDZ')
+CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
+MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
 
 
 def test_onnx_to_circom(tmp_path):
