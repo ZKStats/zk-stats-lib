@@ -10,6 +10,8 @@ from zkstats.onnx2circom import onnx_to_circom
 from zkstats.arithc_to_bristol import parse_arithc_json
 from zkstats.backends.mpspdz import generate_mpspdz_circuit, run_mpspdz_circuit
 
+from .utils import run_torch_model, torch_model_to_onnx
+
 
 # NOTE: Change the path to your own path
 CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
@@ -39,13 +41,18 @@ def test_onnx_to_circom(tmp_path):
 
 
 def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path):
-    onnx_path = tmp_path / 'model.onnx'
-    out_dir_path = tmp_path / 'out'
+    # output_path = tmp_path
+    # Don't use tmp_path for now for easier debugging
+    # So you should see all generated files in `output_path`
+    output_path = Path(__file__).parent / 'out'
+    print(f"!@# {output_path=}")
+    output_path.mkdir(parents=True, exist_ok=True)
+    onnx_path = output_path / 'model.onnx'
     model_name = onnx_path.stem
     keras_path = onnx_path.parent / f"{model_name}.keras"
     assert onnx_path.stem == keras_path.stem
     print(f"!@# {keras_path=}")
-    circom_path = out_dir_path / f"{model_name}.circom"
+    circom_path = output_path / f"{model_name}.circom"
     print(f"!@# {circom_path=}")
 
     print("Running torch model...")
@@ -60,19 +67,19 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     onnx_to_circom(onnx_path, circom_path)
     assert circom_path.exists() is True, f"The output file {circom_path} does not exist."
 
-    arithc_path = out_dir_path / f"{model_name}.json"
+    arithc_path = output_path / f"{model_name}.json"
     # Compile with circom-2-arithc compiler
-    code = os.system(f"cd {CIRCOM_2_ARITHC_PROJECT_ROOT} && ./target/release/circom --input {circom_path} --output {out_dir_path}")
+    code = os.system(f"cd {CIRCOM_2_ARITHC_PROJECT_ROOT} && ./target/release/circom --input {circom_path} --output {output_path}")
     if code != 0:
         raise ValueError(f"Failed to compile circom. Error code: {code}")
-    arithc_path = out_dir_path / f"{model_name}.json"
+    arithc_path = output_path / f"{model_name}.json"
     assert arithc_path.exists() is True, f"The output file {arithc_path} does not exist."
 
     print("!@# circom_path=", circom_path)
     print("!@# arithc_path=", arithc_path)
 
-    bristol_path = out_dir_path / f"{model_name}.txt"
-    circuit_info_path = out_dir_path / f"{model_name}.circuit_info.json"
+    bristol_path = output_path / f"{model_name}.txt"
+    circuit_info_path = output_path / f"{model_name}.circuit_info.json"
     parse_arithc_json(arithc_path, bristol_path, circuit_info_path)
     assert bristol_path.exists() is True, f"The output file {bristol_path} does not exist."
     assert circuit_info_path.exists() is True, f"The output file {circuit_info_path} does not exist."
@@ -109,33 +116,3 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     print(f"Running mp-spdz circuit {mpc_circuit_path}...")
     run_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, mpc_circuit_path)
     # TODO: parse output from MP-SPDZ and compare with torch output
-
-
-def run_torch_model(model_type: Type[nn.Module], data: torch.Tensor) -> torch.Tensor:
-    model = model_type()
-    output_torch = model.forward(data)
-    # untuple the result: if the result is [x], return x
-    shape = output_torch.shape
-    # if it is a 0-d tensor, return it directly
-    if len(shape) == 0:
-        return output_torch
-    # if it is a 1-d tensor with one element, return the element directly
-    elif len(shape) == 1 and shape[0] == 1:
-        return output_torch[0]
-    else:
-        return output_torch
-
-
-def torch_model_to_onnx(model_type: Type[nn.Module], data: torch.Tensor, output_onnx_path: Path):
-    model = model_type()
-    torch.onnx.export(model,               # model being run
-                        data,                   # model input (or a tuple for multiple inputs)
-                        output_onnx_path,            # where to save the model (can be a file or file-like object)
-                        export_params=True,        # store the trained parameter weights inside the model file
-                        opset_version=11,          # the ONNX version to export the model to
-                        do_constant_folding=True,  # whether to execute constant folding for optimization
-                        input_names = ['input'],   # the model's input names
-                        output_names = ['output'], # the model's output names
-                        dynamic_axes={'input' : {0 : 'batch_size'},    # variable length axes
-                                        'output' : {0 : 'batch_size'}})
-
