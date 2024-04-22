@@ -42,8 +42,10 @@ mp_spdz_project_root=$(pwd)
 ```
 
 Build the MPC vm for `semi` protocol
-```
+```bash
 make -j8 semi-party.x
+# Make sure `semi-party.x` exists
+ls semi-party.x
 ```
 
 ### Run the test
