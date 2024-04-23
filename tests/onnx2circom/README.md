@@ -23,6 +23,9 @@ Clone circom-2-arithc. Use a fork for now. Will change to the official repo soon
 cd ..
 git clone https://github.com/mhchia/circom-2-arithc.git
 cd circom-2-arithc
+# Initialize env file
+git checkout mpcstats
+cp .env.example .env
 circom_2_arithc_project_root=$(pwd)
 ```
 
@@ -36,8 +39,9 @@ cargo build --release
 Clone the repo
 ```bash
 cd ..
-git clone https://github.com/data61/MP-SPDZ
+git clone https://github.com/mhchia/MP-SPDZ
 cd MP-SPDZ
+git checkout arith-extcutor
 mp_spdz_project_root=$(pwd)
 ```
 
