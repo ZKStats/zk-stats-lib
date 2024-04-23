@@ -74,7 +74,9 @@ def _parse_arithc_json(arithc_path: str):
         main_outputs[anode.id] = node_name[2:]
     if anode.is_const:
       const_values[anode.id] = anode.const_value
-      const_names[anode.id] = node_name
+      # Make sure each constant has a unique name since different signals can have the same name
+      # E.g. `for (var i = 0; i < 16; i++)`, all 16 signals will have the same name `i`
+      const_names[anode.id] = f"{node_name}_{anode.id}"
 
   for gate in data['gates']:
     gate_id = gate['id']
@@ -292,33 +294,45 @@ def _generate_bristol_and_circuit_info(
       # }
 
       rid_to_iid = {node.rid: node.iid for node in tt.sorted_wires}
-      # Map input name to wire index in MP-SPDZ circuit (including constant wires)
+      # Map highest level input name to wire index in MP-SPDZ circuit (including constant wires)
+      non_const_main_input_rids = [node_rid for node_rid in main_inputs if node_rid not in const_values]
       input_name_to_wire_index = {
         main_inputs[node_rid]: rid_to_iid[node_rid]
-        for node_rid in self.leaves if node_rid not in const_values
+        for node_rid in non_const_main_input_rids
       }
-
-      # FIXME: outputs without a gate are skipped (i.e. direct assigned from input or a constant, etc)
+      if len(input_name_to_wire_index) != len(non_const_main_input_rids):
+        raise Exception("Some inputs have the same name. Please make sure all inputs have distinct names.")
 
       # Prepare constants: const_values is what we want
       # Just sanity check for all constant must be in leaves so we don't miss passing any of them to MP-SPDZ circuit
+      # Check if every node has distinct names
+      const_rids = [
+        node_rid for node_rid in const_values
+        if node_rid in rid_to_iid  # Skip constant wires that are not used in any gates. E.g. constant outputs
+      ]
       const_name_to_value_wire_id = {
         const_names[node_rid]: {
-          'value': const_value,
-          'wire_index': rid_to_iid[node_rid],
+          'value': const_values[node_rid],
+          'wire_index': rid_to_iid[node_rid]
         }
-        for node_rid, const_value in const_values.items()
-        if node_rid in rid_to_iid  # Skip constant wires that are not used in any gates. E.g. constant outputs
+        for node_rid in const_rids
       }
+      if len(const_name_to_value_wire_id) != len(const_rids):
+        raise Exception("Some constants have the same name. Please make sure all constants have distinct names.")
 
       # Prepare outputs
-      # Map output name to wire index in MP-SPDZ circuit
-      output_name_to_wire_index = {
-        output_name: rid_to_iid[node_rid]
-        for node_rid, output_name in main_outputs.items()
+      # Map highest level output name to wire index in MP-SPDZ circuit
+      non_const_main_output_rids = [
+        node_rid for node_rid in main_outputs
         if node_rid in rid_to_iid  # Skip output wires that are not used in any gates. E.g. constant outputs
+      ]
+      output_name_to_wire_index = {
+        main_outputs[node_rid]: rid_to_iid[node_rid]
+        for node_rid in non_const_main_output_rids
       }
-      print("!@# output_name_to_wire_index=", output_name_to_wire_index)
+      if len(output_name_to_wire_index) != len(non_const_main_output_rids):
+        raise Exception("Some outputs have the same name. Please make sure all outputs have distinct names.")
+
       return {
         "input_name_to_wire_index": input_name_to_wire_index,
         "constants": const_name_to_value_wire_id,
