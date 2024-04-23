@@ -1,6 +1,6 @@
 [submodule "zkstats/onnx2circom/onnx2keras"]
 	path = zkstats/onnx2circom/onnx2keras
-	url = git@github.com:mhchia/onnx2keras.git
+	url = git@github.com:JernKunpittaya/onnx2keras.git
 [submodule "zkstats/onnx2circom/keras2circom"]
 	path = zkstats/onnx2circom/keras2circom
-	url = git@github.com:mhchia/keras2circom.git
+	url = git@github.com:JernKunpittaya/keras2circom.git
