@@ -35,7 +35,7 @@ Clone the repo
 
 ```bash
 cd ..
-git clone https://github.com/data61/MP-SPDZ
+git clone https://github.com/mhchia/MP-SPDZ
 cd MP-SPDZ
 git remote add kevin_mpc https://github.com/mhchia/MP-SPDZ.git
 git fetch kevin_mpc
