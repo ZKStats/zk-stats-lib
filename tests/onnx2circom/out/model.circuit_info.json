@@ -1,0 +1,174 @@
+{
+    "input_name_to_wire_index": {
+        "in[0][0]": 3
+    },
+    "constants": {
+        "CALL_TFLog.e_until[0]": {
+            "value": 1,
+            "wire_index": 1
+        },
+        "CALL_TFLog.e": {
+            "value": 2,
+            "wire_index": 0
+        },
+        "CALL_TFLog.random_3123038636": {
+            "value": 3,
+            "wire_index": 45
+        },
+        "CALL_TFLog.random_1536786170": {
+            "value": 4,
+            "wire_index": 54
+        },
+        "CALL_TFLog.random_65894566": {
+            "value": 5,
+            "wire_index": 63
+        },
+        "CALL_TFLog.random_1968063782": {
+            "value": 6,
+            "wire_index": 72
+        },
+        "CALL_TFLog.random_836322008": {
+            "value": 7,
+            "wire_index": 81
+        },
+        "CALL_TFLog.random_307355730": {
+            "value": 8,
+            "wire_index": 90
+        },
+        "CALL_TFLog.random_3308658770": {
+            "value": 9,
+            "wire_index": 99
+        },
+        "CALL_TFLog.random_137927724": {
+            "value": 10,
+            "wire_index": 108
+        },
+        "CALL_TFLog.random_2877205449": {
+            "value": 11,
+            "wire_index": 116
+        },
+        "CALL_TFLog.random_2302905111": {
+            "value": 12,
+            "wire_index": 122
+        },
+        "CALL_TFLog.random_4049415552": {
+            "value": 13,
+            "wire_index": 127
+        },
+        "CALL_TFLog.random_223211698": {
+            "value": 14,
+            "wire_index": 131
+        },
+        "CALL_TFLog.random_1941854461": {
+            "value": 15,
+            "wire_index": 136
+        },
+        "CALL_TFLog.x_over_b_minus_one_exp[0]": {
+            "value": 0,
+            "wire_index": 30
+        },
+        "CALL_TFLog.random_2406097610": {
+            "value": 16,
+            "wire_index": 200
+        },
+        "CALL_TFLog.random_3999137933": {
+            "value": 17,
+            "wire_index": 205
+        },
+        "CALL_TFLog.random_4199281537": {
+            "value": 18,
+            "wire_index": 210
+        },
+        "CALL_TFLog.random_1214600816": {
+            "value": 19,
+            "wire_index": 215
+        },
+        "CALL_TFLog.random_1276586692": {
+            "value": 20,
+            "wire_index": 220
+        },
+        "CALL_TFLog.random_968941469": {
+            "value": 21,
+            "wire_index": 225
+        },
+        "CALL_TFLog.random_3034911278": {
+            "value": 22,
+            "wire_index": 230
+        },
+        "CALL_TFLog.random_2778819914": {
+            "value": 23,
+            "wire_index": 235
+        },
+        "CALL_TFLog.random_2478134815": {
+            "value": 24,
+            "wire_index": 240
+        },
+        "CALL_TFLog.random_374922757": {
+            "value": 25,
+            "wire_index": 245
+        },
+        "CALL_TFLog.random_2784124669": {
+            "value": 26,
+            "wire_index": 250
+        },
+        "CALL_TFLog.random_1967276498": {
+            "value": 27,
+            "wire_index": 255
+        },
+        "CALL_TFLog.random_2924307711": {
+            "value": 28,
+            "wire_index": 260
+        },
+        "CALL_TFLog.random_2067232832": {
+            "value": 29,
+            "wire_index": 265
+        },
+        "CALL_TFLog.random_1810708446": {
+            "value": 30,
+            "wire_index": 270
+        },
+        "CALL_TFLog.random_3995506636": {
+            "value": 31,
+            "wire_index": 275
+        },
+        "CALL_TFLog.random_2513429469": {
+            "value": 32,
+            "wire_index": 280
+        },
+        "CALL_TFLog.random_1089836894": {
+            "value": 33,
+            "wire_index": 285
+        },
+        "CALL_TFLog.random_2640511369": {
+            "value": 34,
+            "wire_index": 290
+        },
+        "CALL_TFLog.random_3224098444": {
+            "value": 35,
+            "wire_index": 295
+        },
+        "CALL_TFLog.random_2627635761": {
+            "value": 36,
+            "wire_index": 300
+        },
+        "CALL_TFLog.random_2993723563": {
+            "value": 37,
+            "wire_index": 305
+        },
+        "CALL_TFLog.random_2145413024": {
+            "value": 38,
+            "wire_index": 310
+        },
+        "CALL_TFLog.random_1833176997": {
+            "value": 39,
+            "wire_index": 315
+        },
+        "CALL_TFLog.random_669912864": {
+            "value": 40,
+            "wire_index": 318
+        }
+    },
+    "output_name_to_wire_index": {
+        "out[0]": 324
+    }
+}
