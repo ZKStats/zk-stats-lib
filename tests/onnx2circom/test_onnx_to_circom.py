@@ -14,8 +14,8 @@ from .utils import run_torch_model, torch_model_to_onnx
 
 
 # NOTE: Change the path to your own path
-CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
-MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
+CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/Users/jernkun/Desktop/circom-2-arithc')
+MP_SPDZ_PROJECT_ROOT = Path('/Users/jernkun/Desktop/MP-SPDZ')
 
 
 def test_onnx_to_circom(tmp_path):
