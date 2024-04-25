@@ -62,7 +62,6 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     print("Transforming torch model to onnx...")
     torch_model_to_onnx(model_type, data, onnx_path)
     assert onnx_path.exists() is True, f"The output file {onnx_path} does not exist."
-    # onnx_to_keras(onnx_path, keras_path)
     print("Transforming onnx model to circom...")
     onnx_to_circom(onnx_path, circom_path)
     assert circom_path.exists() is True, f"The output file {circom_path} does not exist."
@@ -97,6 +96,7 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     # for convenience (which input is from which party). Now just put every input to party 0.
     # Assume the input data is a 1-d tensor
     user_config_path = MP_SPDZ_PROJECT_ROOT / f"Configs/{model_name}.json"
+    user_config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(user_config_path, 'w') as f:
         json.dump({"inputs_from": {
             "0": input_names,
@@ -107,6 +107,7 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     # Prepare data for party 0
     data_list = data.reshape(-1)
     input_0_path = MP_SPDZ_PROJECT_ROOT / 'Player-Data/Input-P0-0'
+    input_0_path.parent.mkdir(parents=True, exist_ok=True)
     with open(input_0_path, 'w') as f:
         # TODO: change int to float
         f.write(' '.join([str(int(x)) for x in data_list.tolist()]))
