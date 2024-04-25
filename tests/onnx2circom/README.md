@@ -19,6 +19,7 @@ cd ..
 git clone https://github.com/mhchia/circom-2-arithc.git
 cd circom-2-arithc
 git checkout mpcstats
+# Initialize env file
 cp .env.example .env
 circom_2_arithc_project_root=$(pwd)
 ```
@@ -35,11 +36,13 @@ Clone the repo
 
 ```bash
 cd ..
-git clone https://github.com/data61/MP-SPDZ
+git clone https://github.com/mhchia/MP-SPDZ
 cd MP-SPDZ
+
 git remote add kevin_mpc https://github.com/mhchia/MP-SPDZ.git
 git fetch kevin_mpc
 git checkout arith-executor
+
 mp_spdz_project_root=$(pwd)
 ```
 

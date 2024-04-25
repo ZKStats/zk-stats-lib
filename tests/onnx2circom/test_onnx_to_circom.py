@@ -62,7 +62,6 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     print("Transforming torch model to onnx...")
     torch_model_to_onnx(model_type, data, onnx_path)
     assert onnx_path.exists() is True, f"The output file {onnx_path} does not exist."
-    # onnx_to_keras(onnx_path, keras_path)
     print("Transforming onnx model to circom...")
     onnx_to_circom(onnx_path, circom_path)
     assert circom_path.exists() is True, f"The output file {circom_path} does not exist."
