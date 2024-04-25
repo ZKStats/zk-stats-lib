@@ -1,0 +1,26 @@
+{
+  "name": "keras2circom",
+  "version": "2.0.0",
+  "description": "keras2circom circuit tests",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha --max-old-space-size=4000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/socathie/keras2circom.git"
+  },
+  "author": "Cathie So, PhD",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/socathie/keras2circom/issues"
+  },
+  "homepage": "https://github.com/socathie/keras2circom#readme",
+  "devDependencies": {
+    "await-exec": "^0.1.2",
+    "chai": "^4.3.7",
+    "circom_tester": "^0.0.19",
+    "circomlib-ml": "^2.1.0",
+    "mocha": "^10.2.0"
+  }
+}
