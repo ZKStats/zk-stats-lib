@@ -42,7 +42,9 @@ template TFReduceSum(nInputs) {
         add[i].in[1][0] <== in[i+1][0];
         sum_till[i+1] <== add[i].out[0];
     }
-    out[0] <== sum_till[nInputs-1];
+    // FIXME: adding 0 is a workaround for nInputs=1, to force `in[0][0]` to be an
+    // input in a gate
+    out[0] <== sum_till[nInputs-1] + 0;
 }
 
 template TFReduceMean(nInputs) {
