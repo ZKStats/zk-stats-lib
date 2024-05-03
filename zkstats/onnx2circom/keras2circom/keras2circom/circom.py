@@ -244,13 +244,18 @@ class Component:
         inject_str = ''
         for signal in self.inputs:
             if signal.name == 'out' or signal.name == 'remainder':
-                inject_str += signal.inject_signal(self.name)
-                if last_comp is True and signal.name == 'out':
-                    inject_str += signal.inject_output_signal()
+                raise ValueError("input signal should not have name `out`. we don't support witness approach for now")
+                # inject_str += signal.inject_signal(self.name)
+                # if last_comp is True and signal.name == 'out':
+                #     inject_str += signal.inject_output_signal()
+                #     pass
             elif signal.value is None and prev_comp is None:
                 inject_str += signal.inject_input_signal()
             elif signal.value is not None:
                 inject_str += signal.inject_signal(self.name)
+
+        for signal in self.outputs:
+            inject_str += signal.inject_output_signal()
         return inject_str
 
     def inject_component(self) -> str:
@@ -288,7 +293,6 @@ class Component:
                 if output_signal is None:
                     output_signal = prev_comp.outputs[0]
                 inject_str += signal.inject_main(self.name, prev_comp.name, output_signal)
-                print
         if last_comp:
             for signal in self.inputs:
                 if signal.name == 'out':
