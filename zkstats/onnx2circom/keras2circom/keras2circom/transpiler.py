@@ -97,14 +97,46 @@ def transpile_ReLU(layer: Layer) -> typing.List[Component]:
     return [Component(layer.name, templates['ReLU'], [Signal('in', layer.output), Signal('out', layer.output)], [])]
 
 def transpile_TFReduceMean(layer: Layer) -> typing.List[Component]:
-    return [Component(layer.name, templates['TFReduceMean'], [Signal('in', layer.input), Signal('out', (1,))], [], {'nInputs':layer.config['nInputs']})]
+    # layer.output = ()
+    print(f"!@# transpile_TFReduceMean: {layer.input=}, {layer.output=}")
+    # name: str
+    # template: Template
+    # inputs: typing.List[Signal]
+    # outputs: typing.List[Signal]
+    # # optional args
+    # args: typing.Dict[str, typing.Any] = None
+    return [Component(
+        name=layer.name,
+        template=templates['TFReduceMean'],
+        inputs=[Signal('in', layer.input)],
+        outputs=[Signal('out', (1,))],
+        # inputs=[Signal('in', layer.input)],
+        # outputs=[Signal('out', (1,))],
+        args={'nInputs':layer.input[0]}
+    )]
 
 def transpile_TFReduceSum(layer: Layer) -> typing.List[Component]:
-    return [Component(layer.name, templates['TFReduceSum'], [Signal('in', layer.input), Signal('out', (1,))], [], {'nInputs':layer.config['nInputs']})]
+    # Component(name, template, inputs, outputs, args)
+    # Signal(name, shape, value)
+    # return [Component(layer.name, templates['TFReduceSum'], [Signal('in', layer.input), Signal('out', (1,))], [], {'nInputs':layer.input[0]})]
+    return [Component(
+        name=layer.name,
+        template=templates['TFReduceSum'],
+        inputs=[Signal('in', layer.input)],
+        outputs=[Signal('out', (1,))],
+        args={'nInputs':layer.input[0]}
+    )]
 
 def transpile_TFLog(layer: Layer) -> typing.List[Component]:
-    print(f"!@# layer.output={layer.output}")
-    return [Component(layer.name, templates['TFLog'], [Signal('in', layer.input), Signal('out', (1,))], [], {'e': 2})]
+    # return [Component(layer.name, templates['TFLog'], [Signal('in', layer.input), Signal('out', (1,))], [], {'e': 2})]
+    return [Component(
+        name=layer.name,
+        template=templates['TFLog'],
+        inputs=[Signal('in', layer.input)],
+        outputs=[Signal('out', (1,))],
+        args={'e': 2}
+    )]
+
 
 def transpile_AveragePooling2D(layer: Layer) -> typing.List[Component]:
     if layer.config['data_format'] != 'channels_last':

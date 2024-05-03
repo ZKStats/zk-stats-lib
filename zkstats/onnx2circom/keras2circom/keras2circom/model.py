@@ -8,6 +8,8 @@ import numpy as np
 import keras
 
 from zkstats.onnx2circom.onnx2keras.layers import (
+    TFAdd,
+    TFMul,
     TFReciprocal,
     TFSqrt,
     TFExp,
@@ -22,6 +24,8 @@ from zkstats.onnx2circom.onnx2keras.layers import (
 )
 
 onnx2circom_ops_raw = [
+    TFAdd,
+    TFMul,
     TFLog,  # log_e(n)
     TFReduceSum,  # sum(n)
     TFReduceMean,
