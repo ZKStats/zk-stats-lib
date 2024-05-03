@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod, abstractclassmethod
 import statistics
+from typing import Optional
 
 import numpy as np
 import torch
 
 # boolean: either 1.0 or 0.0
 IsResultPrecise = torch.Tensor
-MagicNumber = 9999999
+MagicNumber = 9999999.0
 
 
 class Operation(ABC):
@@ -29,16 +30,23 @@ class Where(Operation):
         # here error is trivial, but here to conform to other functions
         return cls(torch.where(x[0],x[1], MagicNumber ),error)
     def ezkl(self, x:list[torch.Tensor]) -> IsResultPrecise:
-        bool_array = torch.logical_or(x[1]==self.result, torch.logical_and(torch.logical_not(x[0]), self.result==MagicNumber))
-        # print('sellll: ', self.result)
+        bool_array = torch.logical_or(torch.logical_and(x[0], x[1]==self.result), torch.logical_and(torch.logical_not(x[0]), self.result==MagicNumber))
         return torch.sum(bool_array.float())==x[1].size()[1]
 
 
 class Mean(Operation):
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'Mean':
+    def create(cls, x: list[torch.Tensor], error: float, witness_array:Optional[list[torch.Tensor]] = None ) -> 'Mean':
         # support where statement, hopefully we can use 'nan' once onnx.isnan() is supported
-        return cls(torch.mean(x[0][x[0]!=MagicNumber]), error)
+        if witness_array is None:
+            # this is prover
+            print('provvv')
+            return cls(torch.mean(x[0][x[0]!=MagicNumber]), error)
+        else:
+            # this is verifier
+            print('verrrr')
+            return cls(witness_array[0], error)
+
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
@@ -200,8 +208,13 @@ class Mode(Operation):
         old_size = x.size()[1]
         x = torch.where(x==MagicNumber, min_x-1, x)
         count_equal = torch.sum((x==self.result).float())
-        result = torch.tensor([torch.logical_or(torch.sum((x==ele[0]).float())<=count_equal, min_x-1 ==ele[0]) for ele in x[0]])
-        return torch.sum(result) == old_size
+
+        count_check = 0
+        for ele in x[0]:
+            bool1 = torch.sum((x==ele[0]).float())<=count_equal
+            bool2 = ele[0]==min_x-1
+            count_check += torch.logical_or(bool1, bool2)
+        return count_check ==old_size
 
 
 class PStdev(Operation):

@@ -43,15 +43,20 @@ class State:
         self.error: float = error
         # Pointer to the current operation index. If None, it's in stage 1. If not None, it's in stage 3.
         self.current_op_index: Optional[int] = None
-
+        self.witness_array: Optional[list[torch.Tensor]] = None
     def set_ready_for_exporting_onnx(self) -> None:
         self.current_op_index = 0
-
+    def set_witness(self,witness_array) -> None:
+        self.witness_array = witness_array
     def mean(self, x: torch.Tensor) -> torch.Tensor:
         """
         Calculate the mean of the input tensor. The behavior should conform to
         [statistics.mean](https://docs.python.org/3/library/statistics.html#statistics.mean) in Python standard library.
         """
+        # if self.witness_array is not None:
+        #     print('self.wtiness ', self.witness_array)
+        #     return self._call_op([x], Mean, self.witness_array)
+        # else:
         return self._call_op([x], Mean)
 
     def median(self, x: torch.Tensor) -> torch.Tensor:
@@ -145,7 +150,10 @@ class State:
 
     def _call_op(self, x: list[torch.Tensor], op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
         if self.current_op_index is None:
-            op = op_type.create(x, self.error)
+            if self.witness_array is not None:
+                op = op_type.create(x, self.error, self.witness_array)
+            else:
+                op = op_type.create(x, self.error)
             self.ops.append(op)
             return op.result
         else:
@@ -168,10 +176,14 @@ class State:
             def is_precise() -> IsResultPrecise:
                 return op.ezkl(x)
             self.bools.append(is_precise)
+            
+            # self.x.append(x)
 
             # If this is the last operation, aggregate all `is_precise` in `self.bools`, and return (is_precise_aggregated, result)
             # else, return only result
+            # print('all ops:', self.ops)
             if current_op_index == len_ops - 1:
+                print('final op: ', op)
                 # Sanity check for length of self.ops and self.bools
                 len_bools = len(self.bools)
                 if len_ops != len_bools:
@@ -179,14 +191,29 @@ class State:
                 is_precise_aggregated = torch.tensor(1.0)
                 for i in range(len_bools):
                     res = self.bools[i]()
+                    # print("hey computation: ", i)
+                    # print('self.ops: ', self.ops[i])
+                    # print('res: ', res)
                     is_precise_aggregated = torch.logical_and(is_precise_aggregated, res)
-                return is_precise_aggregated, op.result
+                if isinstance(op, Where):
+                    # return as where result
+                    return is_precise_aggregated, op.result+x[1]-x[1]
+                else:
+                    # return as a single number
+                    # return is_precise_aggregated, torch.tensor(40.0)+(x[0]-x[0])[0][0][0]
+                    return is_precise_aggregated, op.result+(x[0]-x[0])[0][0][0]
+
             elif current_op_index > len_ops - 1:
                 # Sanity check that current op index does not exceed the length of ops
                 raise Exception(f"current_op_index out of bound: {current_op_index=} > {len_ops=}")
             else:
-                # It's not the last operation, just return the result
-                return op.result
+                # for where
+                if isinstance(op, Where):
+                    return (op.result+x[1]-x[1])
+                else: 
+                    # return single float number
+                    # return torch.where(x[0], x[1], 9999999)
+                    return op.result+(x[0]-x[0])[0][0][0]
 
 
 class IModel(nn.Module):
@@ -207,7 +234,7 @@ class IModel(nn.Module):
 TComputation = Callable[[State, list[torch.Tensor]], torch.Tensor]
 
 
-def computation_to_model(computation: TComputation, error: float = DEFAULT_ERROR) -> tuple[State, Type[IModel]]:
+def computation_to_model(computation: TComputation, error: float = DEFAULT_ERROR, witness_array: Optional[list[torch.Tensor]] = None ) -> tuple[State, Type[IModel]]:
     """
     Create a torch model from a `computation` function defined by user
     :param computation: A function that takes a State and a list of torch.Tensor, and returns a torch.Tensor
@@ -216,13 +243,17 @@ def computation_to_model(computation: TComputation, error: float = DEFAULT_ERROR
     State is a container for intermediate results of computation, which can be useful when debugging.
     """
     state = State(error)
-
+    # if it's verifier
+    if witness_array is not None:
+        state.set_witness(witness_array)
+    
     class Model(IModel):
         def preprocess(self, x: list[torch.Tensor]) -> None:
             computation(state, x)
             state.set_ready_for_exporting_onnx()
 
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
+            print('x sy: ')
             return computation(state, x)
     return state, Model
 

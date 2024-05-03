@@ -54,6 +54,25 @@ def create_dummy(data_path: str, dummy_data_path: str) -> None:
 # ===================================================================================================
 # ===================================================================================================
 
+def prover_gen_witness_array(
+    data_path:str,
+    selected_columns:list[str],
+    sel_data_path:list[str],
+    prover_model: Type[IModel], 
+    witness_array_path:str
+):
+    data_tensor_array = _process_data(data_path, selected_columns, sel_data_path)
+   
+    circuit = prover_model()
+    # cloned_circuit = circuit.clone()
+    circuit.eval()
+    # be careful of tuple here --> array --> tuple need something like in export_onnx
+    one_witness = circuit.forward(data_tensor_array[0]).data.item()
+    print('one witness: ', one_witness)
+       
+    data ={'value':[one_witness]}
+    json.dump(data, open(witness_array_path, 'w'))
+
 
 def prover_gen_settings(
     data_path: str,
@@ -78,9 +97,16 @@ def prover_gen_settings(
     :param settings_path: path to store the generated settings file
     """
     data_tensor_array = _process_data(data_path, selected_columns, sel_data_path)
-
+   
+    # circuit = prover_model()
+    # circuit.eval()
+    # # be careful of tuple here --> array --> tuple need something like in export_onnx
+    # one_witness = circuit.forward(data_tensor_array[0]).data.item()
+    # print('one witness: ', one_witness)
     # export onnx file
     _export_onnx(prover_model, data_tensor_array, prover_model_path)
+    # print("data tensor: ", data_tensor_array)
+
     # gen + calibrate setting
     _gen_settings(sel_data_path, prover_model_path, scale, mode, settings_path)
 
@@ -346,7 +372,7 @@ def _gen_settings(
   # Poseidon is not homomorphic additive, maybe consider Pedersens or Dory commitment.
   gip_run_args = ezkl.PyRunArgs()
   gip_run_args.input_visibility = "hashed"  # one commitment (values hashed) for each column
-  gip_run_args.param_visibility = "private"  # no parameters shown
+  gip_run_args.param_visibility = "fixed"  # no parameters shown
   gip_run_args.output_visibility = "public"  # should be `(torch.Tensor(1.0), output)`
 
  # generate settings
