@@ -71,22 +71,37 @@ def to_1d(x: torch.Tensor) -> torch.Tensor:
 
 
 class Median(Operation):
-    def __init__(self, x: torch.Tensor, error: float):
+    def __init__(self, x: torch.Tensor, error: float, precal_witness:dict = None ):
+        if precal_witness is None:
         # NOTE: To ensure `lower` and `upper` are a scalar, `x` must be a 1d array.
         # Otherwise, if `x` is a 3d array, `lower` and `upper` will be 2d array, which are not what
         # we want in our context. However, we tend to have x as a `[1, len(x), 1]`. In this case,
         # we need to flatten `x` to 1d array to get the correct `lower` and `upper`.
-        x_1d = to_1d(x)
-        x_1d = x_1d[x_1d!=MagicNumber]
-        super().__init__(torch.tensor(np.median(x_1d)), error)
-        sorted_x = np.sort(x_1d)
-        len_x = len(x_1d)
-        self.lower = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)-1], dtype = torch.float32), requires_grad=False)
-        self.upper = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)], dtype = torch.float32), requires_grad=False)
+            x_1d = to_1d(x)
+            x_1d = x_1d[x_1d!=MagicNumber]
+            super().__init__(torch.tensor(np.median(x_1d)), error)
+            sorted_x = np.sort(x_1d)
+            len_x = len(x_1d)
+            self.lower = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)-1], dtype = torch.float32), requires_grad=False)
+            self.upper = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)], dtype = torch.float32), requires_grad=False)
+        else:
+            tensor_arr = []
+            for ele in precal_witness['Median']:
+                tensor_arr.append(torch.tensor(ele))
+            super().__init__(tensor_arr[0], error)
+            self.lower = torch.nn.Parameter(data = tensor_arr[1], requires_grad=False)
+            self.upper = torch.nn.Parameter(data = tensor_arr[2], requires_grad=False)
+
 
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'Median':
-        return cls(x[0], error)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None ) -> 'Median':
+        if precal_witness is None:
+            return cls(x[0], error)
+        else:
+            tensor_arr = []
+            for ele in precal_witness['Median']:
+                tensor_arr.append(torch.tensor(ele))
+            return cls(tensor_arr[0],error, precal_witness)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]

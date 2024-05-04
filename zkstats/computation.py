@@ -50,12 +50,7 @@ class State:
 
     def set_ready_for_exporting_onnx(self) -> None:
         self.current_op_index = 0
-    # def set_witness(self,witness_array) -> None:
-    #     self.witness_array = witness_array
-    # def set_aggregate_witness_path(self,aggregate_witness_path) -> None:
-    #     self.aggregate_witness_path = aggregate_witness_path
-    # def get_aggregate_witness(self) -> list[torch.Tensor]:
-    #     return self.aggregate_witness
+
     def mean(self, x: torch.Tensor) -> torch.Tensor:
         """
         Calculate the mean of the input tensor. The behavior should conform to
@@ -158,19 +153,16 @@ class State:
             if self.isProver:
                 print('Prover side')
                 op = op_type.create(x, self.error)
-                # print('oppy : ', op)
-                # print('is check pri 1: ', isinstance(op,Mean))
                 if isinstance(op,Mean):
                     self.precal_witness['Mean'] = [op.result.data.item()]
+                elif isinstance(op, Median):
+                    self.precal_witness['Median'] = [op.result.data.item(), op.lower.data.item(), op.upper.data.item()]
             # for verifier
             else:
                 print('Verifier side')
-                # if isinstance(op,Mean):
                 precal_witness = json.loads(open(self.precal_witness_path, "r").read())
-                # tensor_arr = []
-                # for ele in data:
-                #     tensor_arr.append(torch.tensor(ele))
-                op = op_type.create(x, self.error, precal_witness)   
+                op = op_type.create(x, self.error, precal_witness)
+                print('finish create')   
             self.ops.append(op)
             return op.result
         else:
@@ -193,12 +185,10 @@ class State:
             def is_precise() -> IsResultPrecise:
                 return op.ezkl(x)
             self.bools.append(is_precise)
-            
-            # self.x.append(x)
 
             # If this is the last operation, aggregate all `is_precise` in `self.bools`, and return (is_precise_aggregated, result)
             # else, return only result
-            # print('all ops:', self.ops)
+
             if current_op_index == len_ops - 1:
                 print('final op: ', op)
                 # Sanity check for length of self.ops and self.bools
