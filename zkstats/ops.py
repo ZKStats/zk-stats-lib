@@ -36,16 +36,20 @@ class Where(Operation):
 
 class Mean(Operation):
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float, witness_array:Optional[list[torch.Tensor]] = None ) -> 'Mean':
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None ) -> 'Mean':
         # support where statement, hopefully we can use 'nan' once onnx.isnan() is supported
-        if witness_array is None:
+        if precal_witness is None:
             # this is prover
-            print('provvv')
+            # print('provvv')
             return cls(torch.mean(x[0][x[0]!=MagicNumber]), error)
         else:
             # this is verifier
-            print('verrrr')
-            return cls(witness_array[0], error)
+            # print('verrrr')
+            tensor_arr = []
+            for ele in precal_witness['Mean']:
+                tensor_arr.append(torch.tensor(ele))
+            print("mean tensor arr: ", tensor_arr)
+            return cls(tensor_arr[0], error)
 
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:

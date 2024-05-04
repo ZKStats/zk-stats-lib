@@ -54,24 +54,24 @@ def create_dummy(data_path: str, dummy_data_path: str) -> None:
 # ===================================================================================================
 # ===================================================================================================
 
-def prover_gen_witness_array(
-    data_path:str,
-    selected_columns:list[str],
-    sel_data_path:list[str],
-    prover_model: Type[IModel], 
-    witness_array_path:str
-):
-    data_tensor_array = _process_data(data_path, selected_columns, sel_data_path)
+# def prover_gen_witness_array(
+#     data_path:str,
+#     selected_columns:list[str],
+#     sel_data_path:list[str],
+#     prover_model: Type[IModel], 
+#     witness_array_path:str
+# ):
+#     data_tensor_array = _process_data(data_path, selected_columns, sel_data_path)
    
-    circuit = prover_model()
-    # cloned_circuit = circuit.clone()
-    circuit.eval()
-    # be careful of tuple here --> array --> tuple need something like in export_onnx
-    one_witness = circuit.forward(data_tensor_array[0]).data.item()
-    print('one witness: ', one_witness)
+#     circuit = prover_model()
+#     # cloned_circuit = circuit.clone()
+#     circuit.eval()
+#     # be careful of tuple here --> array --> tuple need something like in export_onnx
+#     one_witness = circuit.forward(data_tensor_array[0]).data.item()
+#     print('one witness: ', one_witness)
        
-    data ={'value':[one_witness]}
-    json.dump(data, open(witness_array_path, 'w'))
+#     data ={'value':[one_witness]}
+#     json.dump(data, open(witness_array_path, 'w'))
 
 
 def prover_gen_settings(
