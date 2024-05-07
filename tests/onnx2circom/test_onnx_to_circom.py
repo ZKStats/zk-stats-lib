@@ -24,18 +24,24 @@ def test_onnx_to_circom(tmp_path):
     #     dtype = torch.float32,
     # ).reshape(1, -1, 1)
     data = torch.tensor(
-        [32],
+        # [32, 5],
+        [32, 5],
         dtype = torch.float32,
     ).reshape(1, -1, 1)
 
     class Model(nn.Module):
         def forward(self, x):
-            # return torch.sum(x)
+            # return torch.mean(x)
             # return torch.mean(x) + torch.sum(x)
             # return torch.mean(x) + torch.mean(x)
             # return torch.mean(x)
-            # return torch.sum(x)
-            return torch.log(x)
+            # 37+18.5=55.5
+            # 55.5*37=2053.5
+            # 2053.5/37=55.5
+            return (torch.sum(x) + torch.mean(x)) * torch.sum(x) / torch.sum(x)
+            # return torch.sum(x[0][0][0]) + torch.mean(x[0][1][0])
+            # return torch.log(x)
+            # return torch.mean(x)
 
     compile_and_check(Model, data, tmp_path)
 

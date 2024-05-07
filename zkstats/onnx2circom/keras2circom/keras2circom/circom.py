@@ -80,7 +80,12 @@ def file_parse(fpath):
     funcs = re.findall('template (\w+) ?\((.*?)\) ?\{(.*?)\}', lines)
     for func in funcs:
         op_name = func[0].strip()
-        args = func[1].split(',')
+        args_str = func[1]
+        # If `args_str` is empty, it means there is no arg and `args` will be an empty list
+        if args_str == '':
+            args = []
+        else:
+            args = func[1].split(',')
         main = func[2].strip()
         assert op_name not in templates, \
             'duplicated template: {} in {} vs. {}'.format(
@@ -120,6 +125,8 @@ def dir_parse(dir_path, skips=[]):
 class Signal:
     name: str
     shape: typing.List[int]
+    from_component: str = None
+    from_component_output: str = None
     value: typing.Any = None
 
     def inject_signal(self, comp_name: str) -> str:
@@ -146,13 +153,15 @@ class Signal:
                             comp_name, self.name, parse_index(self.shape))
             else:
                 inject_str += '{}{}.{}{} <== {}_{}{};\n'.format(' '*(i+1)*4,
+                            # add.in[0][0] <==
                             comp_name, self.name, parse_index(self.shape),
+                            # tf_reduce_mean_1.out[0][0]
                             comp_name, self.name, parse_index(self.shape))
+
+            # `tf_reduce_mean_1.out[i0] <== tf_reduce_mean_1_out[i0];` is injected here
+            print("!@# injecting main 1: ", inject_str)
             inject_str += '}'*len(self.shape)+'\n'
             return inject_str
-
-        if self.shape != prev_signal.shape:
-            raise ValueError('shape mismatch: {} vs. {}'.format(self.shape, prev_signal.shape))
 
         for i in range(len(self.shape)):
             inject_str += '{}for (var i{} = 0; i{} < {}; i{}++) {{\n'.format(
@@ -167,10 +176,17 @@ class Signal:
                         comp_name, self.name, parse_index(self.shape),
                         prev_comp_name, parse_index(self.shape), prev_signal.name)
         else:
-            inject_str += '{}{}.{}{} <== {}.{}{};\n'.format(' '*(i+1)*4,
-                        comp_name, self.name, parse_index(self.shape),
-                        prev_comp_name, prev_signal.name, parse_index(self.shape))
+            i = len(self.shape) - 1
+            if self.from_component is None:
+                inject_str += '{}{}.{}{} <== {}{};\n'.format(' '*(i+1)*4,
+                            comp_name, self.name, parse_index(self.shape),
+                            self.name, parse_index(self.shape))
+            else:
+                inject_str += '{}{}.{}{} <== {}.{}{};\n'.format(' '*(i+1)*4,
+                            comp_name, self.name, parse_index(self.shape),
+                            self.from_component, self.from_component_output, parse_index(self.shape))
         inject_str += '}'*len(self.shape)+'\n'
+        print("!@# injecting main 2: ", inject_str)
         return inject_str
 
     def inject_input_signal(self) -> str:
@@ -197,6 +213,7 @@ class Signal:
                     comp_name, self.name, parse_index(self.shape),
                     parse_index(self.shape))
         inject_str += '}'*len(self.shape)+'\n'
+        print("!@# inject_input_main: ", inject_str)
         return inject_str
 
     def inject_output_main(self, prev_comp_name: str, prev_signal: Signal) -> str:
@@ -224,6 +241,7 @@ class Signal:
                         parse_index(self.shape),
                         prev_comp_name, prev_signal.name, parse_index(self.shape))
         inject_str += '}'*len(self.shape)+'\n'
+        print("!@# inject_output_main: ", inject_str)
         return inject_str
 
 @dataclass
@@ -232,6 +250,7 @@ class Component:
     template: Template
     inputs: typing.List[Signal]
     outputs: typing.List[Signal]
+    is_component_output: bool = False
     # optional args
     args: typing.Dict[str, typing.Any] = None
 
@@ -254,8 +273,10 @@ class Component:
             elif signal.value is not None:
                 inject_str += signal.inject_signal(self.name)
 
-        for signal in self.outputs:
-            inject_str += signal.inject_output_signal()
+        print(f"!@# inject_signal: {self.outputs=}")
+        if self.is_component_output:
+            for signal in self.outputs:
+                inject_str += signal.inject_output_signal()
         return inject_str
 
     def inject_component(self) -> str:
@@ -274,18 +295,25 @@ class Component:
             inject_str += '}'*len(output_signal.shape)+'\n'
             return inject_str
 
-        return 'component {} = {}({});\n'.format(
-            self.name, self.template.op_name, self.parse_args(self.template.args, self.args))
+        # if args=[], there is no arg for the component and nothing should be inside the braces
+        if len(self.template.args) == 0:
+            args_str = ''
+        # else, fill in the args
+        else:
+            args_str = self.parse_args(self.template.args, self.args)
+        return 'component {} = {}({});\n'.format(self.name, self.template.op_name, args_str)
 
     def inject_main(self, prev_comp: Component = None, last_comp: bool = False) -> str:
         '''inject the component main'''
         inject_str = ''
         for signal in self.inputs:
             if signal.value is not None or signal.name == 'out' or signal.name == 'remainder':
+                # if the input is a input xxx_out, don't assign prev comp and signal
                 inject_str += signal.inject_main(self.name)
             elif prev_comp is None:
                 inject_str += signal.inject_input_main(self.name)
             else:
+                output_signal  = None
                 for sig in prev_comp.inputs:
                     if sig.name == 'out':
                         output_signal = sig
@@ -293,11 +321,11 @@ class Component:
                 if output_signal is None:
                     output_signal = prev_comp.outputs[0]
                 inject_str += signal.inject_main(self.name, prev_comp.name, output_signal)
-        if last_comp:
-            for signal in self.inputs:
-                if signal.name == 'out':
-                    inject_str += signal.inject_output_main(self.name, signal)
-                    break
+        if self.is_component_output:
+            # for signal in self.inputs:
+            #     if signal.name == 'out':
+            #         inject_str += signal.inject_output_main(self.name, signal)
+            #         break
             for signal in self.outputs:
                 inject_str += signal.inject_output_main(self.name, signal)
         return inject_str
@@ -372,6 +400,7 @@ class Circuit:
             for i in range(1, len(self.components)):
                 inject_str += self.components[i].inject_main(self.components[i-1], i==len(self.components)-1)
         return inject_str
+
     def to_circom(self) -> str:
         '''convert the circuit to a circom file'''
         return circom_template_string.format(**{

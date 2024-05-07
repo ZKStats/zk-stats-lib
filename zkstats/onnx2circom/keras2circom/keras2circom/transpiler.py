@@ -29,8 +29,8 @@ def transpile(filename: str, output_dir: str = 'output', raw: bool = False, dec:
     with open(output_dir + '/circuit.json', 'w') as f:
         f.write(circuit.to_json(int(dec)))
 
-    with open(output_dir + '/circuit.py', 'w') as f:
-        f.write(to_py(circuit, int(dec)))
+    # with open(output_dir + '/circuit.py', 'w') as f:
+    #     f.write(to_py(circuit, int(dec)))
 
     return circuit
 
@@ -85,8 +85,20 @@ def transpile_layer(layer: Layer, dec: int = 18, last: bool = False) -> typing.L
     if layer.op =='TFReduceSum':
         return transpile_TFReduceSum(layer)
 
-    if layer.op =='TFLog':
+    if layer.op == 'TFLog':
         return transpile_TFLog(layer)
+
+    if layer.op == 'TFAdd':
+        return transpile_TFAdd(layer)
+
+    if layer.op == 'TFMul':
+        return transpile_TFMul(layer)
+
+    if layer.op == 'TFSub':
+        return transpile_TFSub(layer)
+
+    if layer.op == 'TFDiv':
+        return transpile_TFDiv(layer)
 
     raise NotImplementedError(f'Layer {layer.op} is not supported yet.')
 
@@ -98,43 +110,186 @@ def transpile_ReLU(layer: Layer) -> typing.List[Component]:
 
 def transpile_TFReduceMean(layer: Layer) -> typing.List[Component]:
     # layer.output = ()
-    print(f"!@# transpile_TFReduceMean: {layer.input=}, {layer.output=}")
+    print(f"!@# transpile_TFReduceMean: {layer.inputs=}, {layer.outputs=}")
     # name: str
     # template: Template
     # inputs: typing.List[Signal]
     # outputs: typing.List[Signal]
     # # optional args
     # args: typing.Dict[str, typing.Any] = None
+    input_shape = layer.inputs[0].shape[1:]
+    from_output_name = layer.inputs[0].name
+    if layer.model.is_model_input(from_output_name):
+        from_component = None
+    else:
+        from_component = layer.model.get_component_from_output_name(from_output_name)
+    is_component_output = any([layer.model.is_model_output(output.name) for output in layer.outputs])
     return [Component(
         name=layer.name,
         template=templates['TFReduceMean'],
-        inputs=[Signal('in', layer.input)],
+        inputs=[Signal('in', input_shape, from_component=from_component, from_component_output=from_output_name)],
         outputs=[Signal('out', (1,))],
         # inputs=[Signal('in', layer.input)],
         # outputs=[Signal('out', (1,))],
-        args={'nInputs':layer.input[0]}
+        args={'nInputs': input_shape[0]},
+        is_component_output=is_component_output,
     )]
 
 def transpile_TFReduceSum(layer: Layer) -> typing.List[Component]:
     # Component(name, template, inputs, outputs, args)
     # Signal(name, shape, value)
     # return [Component(layer.name, templates['TFReduceSum'], [Signal('in', layer.input), Signal('out', (1,))], [], {'nInputs':layer.input[0]})]
+    print(f"!@# transpile_TFReduceSum: {layer.inputs=}, {layer.outputs=}")
+    input_shape = layer.inputs[0].shape[1:]
+    from_output_name = layer.inputs[0].name
+    if layer.model.is_model_input(from_output_name):
+        from_component = None
+    else:
+        from_component = layer.model.get_component_from_output_name(from_output_name)
+    # TODO: Add the input name to signals
+    #   layer.input=[
+    #       <KerasTensor shape=(), dtype=float32, sparse=False, name=keras_tensor_5>,
+    #       <KerasTensor shape=(), dtype=float32, sparse=False, name=keras_tensor_7>
+    #   ]
+    is_component_output = any([layer.model.is_model_output(output.name) for output in layer.outputs])
     return [Component(
         name=layer.name,
         template=templates['TFReduceSum'],
-        inputs=[Signal('in', layer.input)],
+        inputs=[Signal('in', input_shape, from_component=from_component, from_component_output=from_output_name)],
         outputs=[Signal('out', (1,))],
-        args={'nInputs':layer.input[0]}
+        args={'nInputs': input_shape[0]},
+        is_component_output=is_component_output,
     )]
+
 
 def transpile_TFLog(layer: Layer) -> typing.List[Component]:
     # return [Component(layer.name, templates['TFLog'], [Signal('in', layer.input), Signal('out', (1,))], [], {'e': 2})]
+    input_shape = layer.inputs[0].shape[1:]
+    from_output_name = layer.inputs[0].name
+    if layer.model.is_model_input(from_output_name):
+        from_component = None
+    else:
+        from_component = layer.model.get_component_from_output_name(from_output_name)
+    is_component_output = any([layer.model.is_model_output(output.name) for output in layer.outputs])
     return [Component(
         name=layer.name,
         template=templates['TFLog'],
-        inputs=[Signal('in', layer.input)],
+        inputs=[Signal('in', input_shape, from_component=from_component, from_component_output=from_output_name)],
         outputs=[Signal('out', (1,))],
-        args={'e': 2}
+        args={'e': 2},
+        is_component_output=is_component_output,
+    )]
+
+
+def transpile_TFAdd(layer: Layer) -> typing.List[Component]:
+    print(f"!@# transpile_TFAdd: {layer.inputs=}, {layer.outputs=}")
+    from_output_name_0 = layer.inputs[0].name
+    if layer.model.is_model_input(from_output_name_0):
+        from_component_0 = None
+    else:
+        from_component_0 = layer.model.get_component_from_output_name(from_output_name_0)
+
+    from_output_name_1 = layer.inputs[1].name
+    if layer.model.is_model_input(from_output_name_1):
+        from_component_1 = None
+    else:
+        from_component_1 = layer.model.get_component_from_output_name(from_output_name_1)
+
+    is_component_output = any([layer.model.is_model_output(output.name) for output in layer.outputs])
+
+    return [Component(
+        name=layer.name,
+        template=templates['TFAdd'],
+        inputs=[
+            Signal('in[0]', (1,), from_component=from_component_0, from_component_output='out'),
+            Signal('in[1]', (1,), from_component=from_component_1, from_component_output='out')
+        ],
+        outputs=[Signal('out', (1,))],
+        is_component_output=is_component_output
+    )]
+
+
+def transpile_TFMul(layer: Layer) -> typing.List[Component]:
+    print(f"!@# transpile_TFMul: {layer.inputs=}, {layer.outputs=}")
+    from_output_name_0 = layer.inputs[0].name
+    if layer.model.is_model_input(from_output_name_0):
+        from_component_0 = None
+    else:
+        from_component_0 = layer.model.get_component_from_output_name(from_output_name_0)
+
+    from_output_name_1 = layer.inputs[1].name
+    if layer.model.is_model_input(from_output_name_1):
+        from_component_1 = None
+    else:
+        from_component_1 = layer.model.get_component_from_output_name(from_output_name_1)
+
+    is_component_output = any([layer.model.is_model_output(output.name) for output in layer.outputs])
+
+    return [Component(
+        name=layer.name,
+        template=templates['TFMul'],
+        inputs=[
+            Signal('in[0]', (1,), from_component=from_component_0, from_component_output='out'),
+            Signal('in[1]', (1,), from_component=from_component_1, from_component_output='out')
+        ],
+        outputs=[Signal('out', (1,))],
+        is_component_output=is_component_output
+    )]
+
+
+def transpile_TFSub(layer: Layer) -> typing.List[Component]:
+    print(f"!@# transpile_TFSub: {layer.inputs=}, {layer.outputs=}")
+    from_output_name_0 = layer.inputs[0].name
+    if layer.model.is_model_input(from_output_name_0):
+        from_component_0 = None
+    else:
+        from_component_0 = layer.model.get_component_from_output_name(from_output_name_0)
+
+    from_output_name_1 = layer.inputs[1].name
+    if layer.model.is_model_input(from_output_name_1):
+        from_component_1 = None
+    else:
+        from_component_1 = layer.model.get_component_from_output_name(from_output_name_1)
+
+    is_component_output = any([layer.model.is_model_output(output.name) for output in layer.outputs])
+
+    return [Component(
+        name=layer.name,
+        template=templates['TFSub'],
+        inputs=[
+            Signal('in[0]', (1,), from_component=from_component_0, from_component_output='out'),
+            Signal('in[1]', (1,), from_component=from_component_1, from_component_output='out')
+        ],
+        outputs=[Signal('out', (1,))],
+        is_component_output=is_component_output
+    )]
+
+
+def transpile_TFDiv(layer: Layer) -> typing.List[Component]:
+    print(f"!@# transpile_TFDiv: {layer.inputs=}, {layer.outputs=}")
+    from_output_name_0 = layer.inputs[0].name
+    if layer.model.is_model_input(from_output_name_0):
+        from_component_0 = None
+    else:
+        from_component_0 = layer.model.get_component_from_output_name(from_output_name_0)
+
+    from_output_name_1 = layer.inputs[1].name
+    if layer.model.is_model_input(from_output_name_1):
+        from_component_1 = None
+    else:
+        from_component_1 = layer.model.get_component_from_output_name(from_output_name_1)
+
+    is_component_output = any([layer.model.is_model_output(output.name) for output in layer.outputs])
+
+    return [Component(
+        name=layer.name,
+        template=templates['TFDiv'],
+        inputs=[
+            Signal('in[0]', (1,), from_component=from_component_0, from_component_output='out'),
+            Signal('in[1]', (1,), from_component=from_component_1, from_component_output='out')
+        ],
+        outputs=[Signal('out', (1,))],
+        is_component_output=is_component_output
     )]
 
 
