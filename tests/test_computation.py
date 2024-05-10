@@ -60,7 +60,7 @@ def nested_computation(state: State, args: list[torch.Tensor]):
 
 @pytest.mark.parametrize(
     "error",
-    [0.1],
+    [ERROR_CIRCUIT_DEFAULT],
 )
 def test_nested_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, column_2: torch.Tensor, error, scales):
     precal_witness_path = tmp_path / "precal_witness_path.json"

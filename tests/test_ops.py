@@ -44,7 +44,7 @@ def test_ops_2_parameters(tmp_path, column_0: torch.Tensor, column_1: torch.Tens
 @pytest.mark.parametrize(
     "error",
     [
-        1.0
+        ERROR_CIRCUIT_DEFAULT
     ]
 )
 def test_linear_regression(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, error: float, scales: list[float]):
