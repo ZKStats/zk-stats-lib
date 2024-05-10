@@ -2,72 +2,75 @@ pragma circom 2.0.0;
 
 
 template TFAdd() {
-    signal input in[2][1];
-    signal output out[1];
+    signal input left;
+    signal input right;
+    signal output out;
 
-    out[0] <== in[0][0] + in[1][0];
+    out <== left + right;
 }
 
 template TFSub() {
-    signal input in[2][1];
-    signal output out[1];
+    signal input left;
+    signal input right;
+    signal output out;
 
-    out[0] <== in[0][0] - in[1][0];
+    out <== left - right;
 }
 
 template TFMul() {
-    signal input in[2][1];
-    signal output out[1];
+    signal input left;
+    signal input right;
+    signal output out;
 
-    out[0] <== in[0][0] * in[1][0];
+    out <== left * right;
 }
 
 template TFDiv() {
-    signal input in[2][1];
-    signal output out[1];
+    signal input left;
+    signal input right;
+    signal output out;
 
-    out[0] <== in[0][0] / in[1][0];
+    out <== left / right;
 }
 
 template TFReduceSum(nInputs) {
-    signal input in[nInputs][1];
-    signal output out[1];
+    signal input in[nInputs];
+    signal output out;
 
     signal sum_till[nInputs];
-    sum_till[0] <== in[0][0];
+    sum_till[0] <== in[0];
     component add[nInputs-1];
     for (var i = 0; i<nInputs-1; i++){
         add[i] = TFAdd();
-        add[i].in[0][0] <== sum_till[i];
-        add[i].in[1][0] <== in[i+1][0];
-        sum_till[i+1] <== add[i].out[0];
+        add[i].left <== sum_till[i];
+        add[i].right <== in[i+1];
+        sum_till[i+1] <== add[i].out;
     }
     // FIXME: adding 0 is a workaround for nInputs=1, to force `in[0][0]` to be an
     // input in a gate
-    out[0] <== sum_till[nInputs-1] + 0;
+    out <== sum_till[nInputs-1] + 0;
 }
 
 template TFReduceMean(nInputs) {
-    signal input in[nInputs][1];
-    signal output out[1];
+    signal input in[nInputs];
+    signal output out;
 
     component sum = TFReduceSum(nInputs);
     for (var i = 0; i<nInputs; i++){
-        sum.in[i][0] <== in[i][0];
+        sum.in[i] <== in[i];
     }
 
     component div = TFDiv();
-    div.in[0][0] <== sum.out[0];
-    div.in[1][0] <== nInputs;
-    out[0] <== div.out[0];
+    div.left <== sum.out;
+    div.right <== nInputs;
+    out <== div.out;
 }
 
 
 // TODO: e should be 2.71828 instead of 2 for now
 template TFLog(e) {
-    signal input in[1][1];
-
-    signal output out[1];
+    signal input in;
+    signal output out;
 
     // Approximate natural log with talyer series. For 0 < x <= 2
     // - ln(x) = ln(1 + (x-1)) = 0 + (x-1) - (x-1)^2/2 + (x-1)^3/3 - (x-1)^4/4 + ...
@@ -84,7 +87,7 @@ template TFLog(e) {
     // Step 1: Find b so that b = e^k and x/b <= 1
     // find b so that x/b < 1 and can be used in talyer series
     // b = e^k, e=2.71828
-    signal x <== in[0][0];
+    signal x <== in;
     // e_until[i] = e^i
     signal e_until[max_exponent];
     e_until[0] <== 1;
@@ -101,21 +104,21 @@ template TFLog(e) {
     component sel_comp[max_exponent];
     for (var i = 1; i < max_exponent; i++) {
         sel_comp[i] = TFMul();
-        sel_comp[i].in[0][0] <== x > e_until[i-1];
-        sel_comp[i].in[1][0] <== x <= e_until[i];
-        sel[i] <== sel_comp[i].out[0];
+        sel_comp[i].left <== x > e_until[i-1];
+        sel_comp[i].right <== x <= e_until[i];
+        sel[i] <== sel_comp[i].out;
     }
     component k_by_sum = TFReduceSum(max_exponent);
     for (var i = 0; i < max_exponent; i++) {
-        k_by_sum.in[i][0] <== sel[i] * i;
+        k_by_sum.in[i] <== sel[i] * i;
     }
-    signal k <== k_by_sum.out[0];
+    signal k <== k_by_sum.out;
     // sum(sel*e^k) = b
     component b_by_sum = TFReduceSum(max_exponent);
     for (var i = 0; i < max_exponent; i++) {
-        b_by_sum.in[i][0] <== sel[i] * e_until[i];
+        b_by_sum.in[i] <== sel[i] * e_until[i];
     }
-    signal b <== b_by_sum.out[0];
+    signal b <== b_by_sum.out;
 
     // Step 2: Calculate ln(x/b) using talyer series
     signal x_over_b <== x / b;
@@ -136,9 +139,9 @@ template TFLog(e) {
     signal taylor_series_sum;
     component taylor_series_sum_comp = TFReduceSum(taylor_series_iterations);
     for (var i = 0; i < taylor_series_iterations; i++) {
-        taylor_series_sum_comp.in[i][0] <== taylor_series[i];
+        taylor_series_sum_comp.in[i] <== taylor_series[i];
     }
-    taylor_series_sum <== taylor_series_sum_comp.out[0];
+    taylor_series_sum <== taylor_series_sum_comp.out;
 
-    out[0] <== taylor_series_sum + k;
+    out <== taylor_series_sum + k;
 }
