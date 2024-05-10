@@ -77,6 +77,12 @@ def file_parse(fpath):
 
     lines = re.sub('/\*.*?\*/', 'IGN', lines)
 
+    # !@# file_parse: op_name='TFReduceSum'
+    # !@# file_parse: signals=[('input', 'in', '[nInputs][1]'), ('output', 'out', '[1]')]
+    # !@# file_parse: sig=('input', 'in', '[nInputs][1]')
+    # !@# file_parse: sig=('output', 'out', '[1]')
+    # !@# file_parse: infos=[['in'], [2], ['out'], [1]]
+    # !@# file_parse: args=['nInputs']
     funcs = re.findall('template (\w+) ?\((.*?)\) ?\{(.*?)\}', lines)
     for func in funcs:
         op_name = func[0].strip()
@@ -90,21 +96,37 @@ def file_parse(fpath):
         assert op_name not in templates, \
             'duplicated template: {} in {} vs. {}'.format(
                     op_name, templates[op_name].fpath, fpath)
-
+        print(f"!@# file_parse: {op_name=}")
         signals = re.findall('signal (\w+) (\w+)(.*?);', main)
+        print(f"!@# file_parse: {signals=}")
         infos = [[] for i in range(4)]
+        # E.g. sig = ('input', 'in', '[nInputs][1]')
         for sig in signals:
+            print(f"!@# file_parse: {sig=}")
             sig_types = ['input', 'output']
             assert sig[0] in sig_types, sig[1] + ' | ' + main
             idx = sig_types.index(sig[0])
+            # infos[0] contains the names of the signals
+            # idx = 0 ->
+            #   - infos[0]: input signal names
+            #   - infos[1]: input signal dims (number of [])
+            # idx = 1 ->
+            #   - infos[2]: output signal names
+            #   - infos[3]: output signal dims (number of [])
             infos[idx*2+0].append(sig[1])
 
             sig_dim = sig[2].count('[')
             infos[idx*2+1].append(sig_dim)
         templates[op_name] = Template(
-                op_name, fpath,
-                [a.strip() for a in args],
-                *infos)
+            op_name=op_name,
+            fpath=fpath,
+            args=[a.strip() for a in args],
+            input_names=infos[0],
+            input_dims=infos[1],
+            # input_shape
+            output_names=infos[2],
+            output_dims=infos[3],
+        )
 
 
 def dir_parse(dir_path, skips=[]):
@@ -186,7 +208,6 @@ class Signal:
                             comp_name, self.name, parse_index(self.shape),
                             self.from_component, self.from_component_output, parse_index(self.shape))
         inject_str += '}'*len(self.shape)+'\n'
-        print("!@# injecting main 2: ", inject_str)
         return inject_str
 
     def inject_input_signal(self) -> str:
@@ -213,7 +234,6 @@ class Signal:
                     comp_name, self.name, parse_index(self.shape),
                     parse_index(self.shape))
         inject_str += '}'*len(self.shape)+'\n'
-        print("!@# inject_input_main: ", inject_str)
         return inject_str
 
     def inject_output_main(self, prev_comp_name: str, prev_signal: Signal) -> str:
@@ -273,7 +293,6 @@ class Component:
             elif signal.value is not None:
                 inject_str += signal.inject_signal(self.name)
 
-        print(f"!@# inject_signal: {self.outputs=}")
         if self.is_component_output:
             for signal in self.outputs:
                 inject_str += signal.inject_output_signal()
@@ -310,10 +329,12 @@ class Component:
             if signal.value is not None or signal.name == 'out' or signal.name == 'remainder':
                 # if the input is a input xxx_out, don't assign prev comp and signal
                 inject_str += signal.inject_main(self.name)
+
+            # if no previous comp, this is the first layer and get inputs from the input signal
             elif prev_comp is None:
                 inject_str += signal.inject_input_main(self.name)
             else:
-                output_signal  = None
+                output_signal = None
                 for sig in prev_comp.inputs:
                     if sig.name == 'out':
                         output_signal = sig

@@ -40,7 +40,6 @@ def keras_to_circom(keras_path: Path, generated_circom_path: Path):
     transpiler.transpile(
         str(keras_path),
         str(keras2circom_output_dir),
-        raw=False,  # Seems not used
         dec=18,  # TODO: decimal. Now it's the default value. We can pick up a suitable value
     )
     generated_circom_original = keras2circom_output_dir / f"circuit.circom"
