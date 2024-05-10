@@ -56,10 +56,10 @@ def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
     # Compute the median of the second column
     median2 = s.median(data[1])
     # Compute the mean of the medians
-    return s.mean(torch.Tensor([median1, median2]).reshape(1, -1, 1))
+    return s.mean(torch.cat((median1.unsqueeze(0), median2.unsqueeze(0))).reshape(1,-1,1))
 ```
 
-> NOTE: `reshape` is required for now since input must be in shape `[1, data_size, 1]` for now. It should be addressed in the future
+> NOTE: `reshape` is required for now since input must be in shape `[1, data_size, 1]` for now. It should be addressed in the future, the same for torch.cat(), and unsqueeze(), we will write wrapper in the future.
 
 #### Torch Operations
 
@@ -88,7 +88,7 @@ def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
 ### Proof Generation and Verification
 
 The flow between data providers and users is as follows:
-![zkstats-lib-flow](./assets/zkstats-lib.png)
+![zkstats-lib-flow](./assets/zkstats-flow.png)
 
 #### Data Provider: generate data commitments
 
@@ -109,12 +109,16 @@ When generating a proof, since dataset might contain floating points, data provi
 
 #### Both: derive PyTorch model from the computation
 
-When a user wants to request a data provider to generate a proof for their defined computation, the user must send the data provider first. Then, both the data provider and the user transform the model to necessary settings, respectively.
+When a user wants to request a data provider to generate a proof for their defined computation, the user must let the data provider know what the computation is. Then, the data provider, with real dataset, will generate model from computation using computation_to_model() method. Since we use witness approach (described more in Note section below), the data provider is required to send the pre-calculated witness back to verifier. Then, verifier, with pre-calculated witness, generates the model from computation to be the exact model as prover.
+
+Note here, that we can also just let prover generate model, and then send that model to verifier directly. However, to make sure that the prover's model actually comes from verifier's computation, it's better to have verifier generates the model itself from its computation, but just with the help of pre-calculated witness.
 
 ```python
 from zkstats.core import computation_to_model
-
-_, model = computation_to_model(user_computation)
+# For prover: generate prover_model, and write to precal_witness file
+_, prover_model = computation_to_model(user_computation, precal_witness_path, True, error)
+# For verifier, generate verifier model (which is same as prover_model) by reading precal_witness file
+_, verifier_model = computation_to_model(user_computation, precal_witness_path, False, error)
 ```
 
 #### Data Provider: generate settings
@@ -204,14 +208,14 @@ See our jupyter notebook for [examples](./examples/).
 
 ## Benchmarks
 
+TOFIX: Update the benchmark method. See more in issues.
 See our jupyter notebook for [benchmarks](./benchmark/).
-TODO: clean benchmark
 
 ## Note
 
 - We implement using witness approach instead of directly calculating the value in circuit. This sometimes allows us to not calculate stuffs like division or exponential which requires larger scale in settings. (If we don't use larger scale in those cases, the accuracy will be very bad)
 - Dummy data to feed in verifier onnx file needs to have same shape as the private dataset, but can be filled with any value (we just randomize it to be uniform 1-10 with 1 decimal).
-- For Mode function, if there are more than 1 value possible, we just output one of them (the one that first encountered), conforming to the spec of statistics.mode in python lib (https://docs.python.org/3.9/library/statistics.html#statistics.mode)
+- For Mode function, if there are more than 1 value possible, we just outputthe one that first encountered, conforming to the spec of statistics.mode in python lib (https://docs.python.org/3.9/library/statistics.html#statistics.mode)
 
 ## Legacy
 
