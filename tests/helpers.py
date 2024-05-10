@@ -16,7 +16,7 @@ ERROR_CIRCUIT_STRICT = 0.0001
 ERROR_CIRCUIT_RELAXED = 0.1
 
 
-def data_to_file(data_path: Path, data: list[torch.Tensor]) -> dict[str, list]:
+def data_to_json_file(data_path: Path, data: list[torch.Tensor]) -> dict[str, list]:
     column_names = [f"columns_{i}" for i in range(len(data))]
     column_to_data = {
         column: d.tolist()
@@ -48,15 +48,8 @@ def compute(
     data_path = basepath / "data.json"
     data_commitment_path = basepath / "commitments.json"
 
-    # verifier_model_path = basepath / "verifier_model.onnx"
-    # verifier_compiled_model_path = basepath / "verifier_model.compiled"
-    # prover_model_path = basepath / "prover_model.onnx"
-    # prover_compiled_model_path = basepath / "prover_model.compiled"
-    # precal_witness_path = basepath / "precal_witness_arr.json"
-    # dummy_data_path = basepath / "dummy_data.json"
-    # sel_dummy_data_path = basepath / "sel_dummy_data_path.json"
+    column_to_data = data_to_json_file(data_path, data)
 
-    column_to_data = data_to_file(data_path, data)
     # If selected_columns_params is None, select all columns
     if selected_columns_params is None:
         selected_columns = list(column_to_data.keys())
