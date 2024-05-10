@@ -7,7 +7,7 @@ import torch
 
 # boolean: either 1.0 or 0.0
 IsResultPrecise = torch.Tensor
-MagicNumber = 9999999.0
+MagicNumber = 99.999
 
 
 class Operation(ABC):
@@ -26,17 +26,18 @@ class Operation(ABC):
 
 class Where(Operation):
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'Where':
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'Where':
         # here error is trivial, but here to conform to other functions
-        return cls(torch.where(x[0],x[1], MagicNumber ),error)
+        # just dummy result, since not using it anyway because we dont want to expose direct result from where
+        return cls(torch.tensor(1),error)
     def ezkl(self, x:list[torch.Tensor]) -> IsResultPrecise:
-        bool_array = torch.logical_or(torch.logical_and(x[0], x[1]==self.result), torch.logical_and(torch.logical_not(x[0]), self.result==MagicNumber))
-        return torch.sum(bool_array.float())==x[1].size()[1]
+        return torch.tensor(True)
+
 
 
 class Mean(Operation):
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None ) -> 'Mean':
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {} ) -> 'Mean':
         # support where statement, hopefully we can use 'nan' once onnx.isnan() is supported
         if precal_witness is None:
             # this is prover
@@ -45,16 +46,15 @@ class Mean(Operation):
         else:
             # this is verifier
             # print('verrrr')
-            tensor_arr = []
-            for ele in precal_witness['Mean']:
-                tensor_arr.append(torch.tensor(ele))
-            print("mean tensor arr: ", tensor_arr)
-            return cls(tensor_arr[0], error)
+            if 'Mean' not in op_dict:
+                return cls(torch.tensor(precal_witness['Mean_0'][0]), error)
+            else:
+                return cls(torch.tensor(precal_witness['Mean_'+str(op_dict['Mean'])][0]), error)
 
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
-        size = torch.sum((x!=MagicNumber).float())
+        size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         x = torch.where(x==MagicNumber, 0.0, x)
         return torch.abs(torch.sum(x)-size*self.result)<=torch.abs(self.error*self.result*size)
 
@@ -71,7 +71,7 @@ def to_1d(x: torch.Tensor) -> torch.Tensor:
 
 
 class Median(Operation):
-    def __init__(self, x: torch.Tensor, error: float, precal_witness:dict = None ):
+    def __init__(self, x: torch.Tensor, error: float, precal_witness:dict = None, op_dict:dict= {} ):
         if precal_witness is None:
         # NOTE: To ensure `lower` and `upper` are a scalar, `x` must be a 1d array.
         # Otherwise, if `x` is a 3d array, `lower` and `upper` will be 2d array, which are not what
@@ -85,84 +85,91 @@ class Median(Operation):
             self.lower = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)-1], dtype = torch.float32), requires_grad=False)
             self.upper = torch.nn.Parameter(data = torch.tensor(sorted_x[int(len_x/2)], dtype = torch.float32), requires_grad=False)
         else:
-            tensor_arr = []
-            for ele in precal_witness['Median']:
-                tensor_arr.append(torch.tensor(ele))
-            super().__init__(tensor_arr[0], error)
-            self.lower = torch.nn.Parameter(data = tensor_arr[1], requires_grad=False)
-            self.upper = torch.nn.Parameter(data = tensor_arr[2], requires_grad=False)
+            if 'Median' not in op_dict:
+                super().__init__(torch.tensor(precal_witness['Median_0'][0]), error)
+                self.lower = torch.nn.Parameter(data = torch.tensor(precal_witness['Median_0'][1]), requires_grad=False)
+                self.upper = torch.nn.Parameter(data = torch.tensor(precal_witness['Median_0'][2]), requires_grad=False)
+            else:
+                super().__init__(torch.tensor(precal_witness['Median_'+str(op_dict['Median'])][0]), error)
+                self.lower = torch.nn.Parameter(data = torch.tensor(precal_witness['Median_'+str(op_dict['Median'])][1]), requires_grad=False)
+                self.upper = torch.nn.Parameter(data = torch.tensor(precal_witness['Median_'+str(op_dict['Median'])][2]), requires_grad=False)
 
 
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None ) -> 'Median':
-        if precal_witness is None:
-            return cls(x[0], error)
-        else:
-            tensor_arr = []
-            for ele in precal_witness['Median']:
-                tensor_arr.append(torch.tensor(ele))
-            return cls(tensor_arr[0],error, precal_witness)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict= {} ) -> 'Median':
+        return cls(x[0],error, precal_witness, op_dict)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
         old_size = x.size()[1]
-        size = torch.sum((x!=MagicNumber).float())
+        size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         min_x = torch.min(x)
         x = torch.where(x==MagicNumber,min_x-1, x)
 
         # since within 1%, we regard as same value
-        count_less = torch.sum((x < self.result).float())-(old_size-size)
-        count_equal = torch.sum((x==self.result).float())
+        count_less = torch.sum(torch.where(x < self.result, 1.0, 0.0))-(old_size-size)
+        count_equal = torch.sum(torch.where(x==self.result, 1.0, 0.0))
         half_size = torch.floor(torch.div(size, 2))
-
+        # print('hhhh: ', half_size)
         less_cons = count_less<half_size+size%2
         more_cons = count_less+count_equal>half_size
 
         # For count_equal == 0
-        lower_exist = torch.sum((x==self.lower).float())>0
-        lower_cons = torch.sum((x>self.lower).float())==half_size
-        upper_exist = torch.sum((x==self.upper).float())>0
-        upper_cons = torch.sum((x<self.upper).float())==half_size
+        lower_exist = torch.sum(torch.where(x==self.lower, 1.0, 0.0))>0
+        lower_cons = torch.sum(torch.where(x>self.lower, 1.0, 0.0))==half_size
+        upper_exist = torch.sum(torch.where(x==self.upper, 1.0, 0.0))>0
+        upper_cons = torch.sum(torch.where(x<self.upper, 1.0, 0.0))==half_size
         bound = count_less== half_size
         # 0.02 since 2*0.01
         bound_avg = (torch.abs(self.lower+self.upper-2*self.result)<=torch.abs(2*self.error*self.result))
 
         median_in_cons = torch.logical_and(less_cons, more_cons)
         median_out_cons = torch.logical_and(torch.logical_and(bound, bound_avg), torch.logical_and(torch.logical_and(lower_cons, upper_cons), torch.logical_and(lower_exist, upper_exist)))
-        return torch.where(count_equal==0, median_out_cons, median_in_cons)
+        return torch.where(count_equal==0.0, median_out_cons, median_in_cons)
 
 
 class GeometricMean(Operation):
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'GeometricMean':
-        x_1d = to_1d(x[0])
-        x_1d = x_1d[x_1d!=MagicNumber]
-        result = torch.exp(torch.mean(torch.log(x_1d)))
-        return cls(result, error)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'GeometricMean':
+        if precal_witness is None:
+            x_1d = to_1d(x[0])
+            x_1d = x_1d[x_1d!=MagicNumber]
+            result = torch.exp(torch.mean(torch.log(x_1d)))
+            return cls(result, error)
+        else:
+            if 'GeometricMean' not in op_dict:
+                return cls(torch.tensor(precal_witness['GeometricMean_0'][0]), error)
+            else:
+                return cls(torch.tensor(precal_witness['GeometricMean_'+str(op_dict['GeometricMean'])][0]), error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         # Assume x is [1, n, 1]
         x = x[0]
-        size = torch.sum((x!=MagicNumber).float())
+        size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         x = torch.where(x==MagicNumber, 1.0, x)
         return torch.abs((torch.log(self.result)*size)-torch.sum(torch.log(x)))<=size*torch.log(torch.tensor(1+self.error))
 
 
 class HarmonicMean(Operation):
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'HarmonicMean':
-        x_1d = to_1d(x[0])
-        x_1d = x_1d[x_1d!=MagicNumber]
-        result = torch.div(1.0,torch.mean(torch.div(1.0, x_1d)))
-        return cls(result, error)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict = {}) -> 'HarmonicMean':
+        if precal_witness is None:
+            x_1d = to_1d(x[0])
+            x_1d = x_1d[x_1d!=MagicNumber]
+            result = torch.div(1.0,torch.mean(torch.div(1.0, x_1d)))
+            return cls(result, error)
+        else:
+            if 'HarmonicMean' not in op_dict:
+                return cls(torch.tensor(precal_witness['HarmonicMean_0'][0]), error)
+            else:
+                return cls(torch.tensor(precal_witness['HarmonicMean_'+str(op_dict['HarmonicMean'])][0]), error)
+     
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         # Assume x is [1, n, 1]
         x = x[0]
-        size = torch.sum((x!=MagicNumber).float())
-        # just make it really big so that 1/x goes to zero for element that gets filtered out
-        x = torch.where(x==MagicNumber, x*x, x)
-        return torch.abs((self.result*torch.sum(torch.div(1.0, x))) - size)<=torch.abs(self.error*size)
+        size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
+        return torch.abs((self.result*torch.sum(torch.where(x==MagicNumber, 0.0, torch.div(1.0, x)))) - size)<=torch.abs(self.error*size)
 
 
 def mode_within(data_array: torch.Tensor, error: float) -> torch.Tensor:
@@ -213,12 +220,19 @@ def mode_within(data_array: torch.Tensor, error: float) -> torch.Tensor:
 
 class Mode(Operation):
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'Mode':
-        x_1d = to_1d(x[0])
-        x_1d = x_1d[x_1d!=MagicNumber]
-        # Here is traditional definition of Mode, can just put this num_error to be 0
-        result = torch.tensor(mode_within(x_1d, 0))
-        return cls(result, error)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'Mode':
+        if precal_witness is None:
+            x_1d = to_1d(x[0])
+            x_1d = x_1d[x_1d!=MagicNumber]
+            # Here is traditional definition of Mode, can just put this num_error to be 0
+            result = torch.tensor(mode_within(x_1d, 0))
+            return cls(result, error)
+        else:
+            if 'Mode' not in op_dict:
+                return cls(torch.tensor(precal_witness['Mode_0'][0]), error)
+            else:
+                return cls(torch.tensor(precal_witness['Mode_'+str(op_dict['Mode'])][0]), error)
+     
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         # Assume x is [1, n, 1]
@@ -226,194 +240,258 @@ class Mode(Operation):
         min_x = torch.min(x)
         old_size = x.size()[1]
         x = torch.where(x==MagicNumber, min_x-1, x)
-        count_equal = torch.sum((x==self.result).float())
+        count_equal = torch.sum(torch.where(x==self.result, 1.0, 0.0))
 
         count_check = 0
         for ele in x[0]:
-            bool1 = torch.sum((x==ele[0]).float())<=count_equal
+            bool1 = torch.sum(torch.where(x==ele[0], 1.0, 0.0))<=count_equal
             bool2 = ele[0]==min_x-1
             count_check += torch.logical_or(bool1, bool2)
         return count_check ==old_size
 
 
 class PStdev(Operation):
-    def __init__(self, x: torch.Tensor, error: float):
-        x_1d = to_1d(x)
-        x_1d = x_1d[x_1d!=MagicNumber]
-        self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
-        result = torch.sqrt(torch.var(x_1d, correction = 0))
-        super().__init__(result, error)
+    def __init__(self, x: torch.Tensor, error: float, precal_witness:dict = None, op_dict:dict = {}):
+        if precal_witness is None:
+            x_1d = to_1d(x)
+            x_1d = x_1d[x_1d!=MagicNumber]
+            self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
+            result = torch.sqrt(torch.var(x_1d, correction = 0))
+            super().__init__(result, error)
+        else:
+            if 'PStdev' not in op_dict:
+                super().__init__(torch.tensor(precal_witness['PStdev_0'][0]), error)
+                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['PStdev_0'][1]), requires_grad=False)
+            else:
+                super().__init__(torch.tensor(precal_witness['PStdev_'+str(op_dict['PStdev'])][0]), error)
+                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['PStdev_'+str(op_dict['PStdev'])][1]), requires_grad=False)
+
 
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'PStdev':
-        return cls(x[0], error)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'PStdev':
+        return cls(x[0], error, precal_witness, op_dict)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
         x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
-        size = torch.sum((x!=MagicNumber).float())
+        size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         x_mean_cons = torch.abs(torch.sum(x_fil_0)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
-        x_fil_mean = torch.where(x==MagicNumber, self.data_mean, x)
+        x_adj_mean = torch.where(x==MagicNumber, 0.0, x-self.data_mean)
         return torch.logical_and(
-            torch.abs(torch.sum((x_fil_mean-self.data_mean)*(x_fil_mean-self.data_mean))-self.result*self.result*size)<=torch.abs(2*self.error*self.result*self.result*size),x_mean_cons
+            torch.abs(torch.sum((x_adj_mean)*(x_adj_mean))-self.result*self.result*size)<=torch.abs(2*self.error*self.result*self.result*size),x_mean_cons
         )
 
 
 class PVariance(Operation):
-    def __init__(self, x: torch.Tensor, error: float):
-        x_1d = to_1d(x)
-        x_1d = x_1d[x_1d!=MagicNumber]
-        self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
-        result = torch.var(x_1d, correction = 0)
-        super().__init__(result, error)
+    def __init__(self, x: torch.Tensor, error: float, precal_witness:dict = None, op_dict:dict = {}):
+        if precal_witness is None:
+            x_1d = to_1d(x)
+            x_1d = x_1d[x_1d!=MagicNumber]
+            self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
+            result = torch.var(x_1d, correction = 0)
+            super().__init__(result, error)
+        else:
+            if 'PVariance' not in op_dict:
+                super().__init__(torch.tensor(precal_witness['PVariance_0'][0]), error)
+                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['PVariance_0'][1]), requires_grad=False)
+            else:
+                super().__init__(torch.tensor(precal_witness['PVariance_'+str(op_dict['PVariance'])][0]), error)
+                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['PVariance_'+str(op_dict['PVariance'])][1]), requires_grad=False)
 
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'PVariance':
-        return cls(x[0], error)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'PVariance':
+        return cls(x[0], error, precal_witness, op_dict)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
         x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
-        size = torch.sum((x!=MagicNumber).float())
+        size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         x_mean_cons = torch.abs(torch.sum(x_fil_0)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
-        x_fil_mean = torch.where(x==MagicNumber, self.data_mean, x)
+        x_adj_mean = torch.where(x==MagicNumber, 0.0, x-self.data_mean)
         return torch.logical_and(
-            torch.abs(torch.sum((x_fil_mean-self.data_mean)*(x_fil_mean-self.data_mean))-self.result*size)<=torch.abs(self.error*self.result*size), x_mean_cons
+            torch.abs(torch.sum((x_adj_mean)*(x_adj_mean))-self.result*size)<=torch.abs(self.error*self.result*size), x_mean_cons
         )
 
 
 
 class Stdev(Operation):
-    def __init__(self, x: torch.Tensor, error: float):
-        x_1d = to_1d(x)
-        x_1d = x_1d[x_1d!=MagicNumber]
-        self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
-        result = torch.sqrt(torch.var(x_1d, correction = 1))
-        super().__init__(result, error)
+    def __init__(self, x: torch.Tensor, error: float, precal_witness:dict = None, op_dict:dict = {}):
+        if precal_witness is None:
+            x_1d = to_1d(x)
+            x_1d = x_1d[x_1d!=MagicNumber]
+            self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
+            result = torch.sqrt(torch.var(x_1d, correction = 1))
+            super().__init__(result, error)
+        else:
+            if 'Stdev' not in op_dict:
+                super().__init__(torch.tensor(precal_witness['Stdev_0'][0]), error)
+                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Stdev_0'][1]), requires_grad=False)
+            else:
+                super().__init__(torch.tensor(precal_witness['Stdev_'+str(op_dict['Stdev'])][0]), error)
+                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Stdev_'+str(op_dict['Stdev'])][1]), requires_grad=False)
+
 
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'Stdev':
-        return cls(x[0], error)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'Stdev':
+        return cls(x[0], error, precal_witness, op_dict)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
         x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
-        size = torch.sum((x!=MagicNumber).float())
+        size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         x_mean_cons = torch.abs(torch.sum(x_fil_0)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
-        x_fil_mean = torch.where(x==MagicNumber, self.data_mean, x)
+        x_adj_mean = torch.where(x==MagicNumber, 0.0, x-self.data_mean)
         return torch.logical_and(
-            torch.abs(torch.sum((x_fil_mean-self.data_mean)*(x_fil_mean-self.data_mean))-self.result*self.result*(size - 1))<=torch.abs(2*self.error*self.result*self.result*(size - 1)), x_mean_cons
+            torch.abs(torch.sum((x_adj_mean)*(x_adj_mean))-self.result*self.result*(size - 1))<=torch.abs(2*self.error*self.result*self.result*(size - 1)), x_mean_cons
         )
 
 
 class Variance(Operation):
-    def __init__(self, x: torch.Tensor, error: float):
-        x_1d = to_1d(x)
-        x_1d = x_1d[x_1d!=MagicNumber]
-        self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
-        result = torch.var(x_1d, correction = 1)
-        super().__init__(result, error)
+    def __init__(self, x: torch.Tensor, error: float, precal_witness:dict = None, op_dict:dict = {}):
+        if precal_witness is None:
+            x_1d = to_1d(x)
+            x_1d = x_1d[x_1d!=MagicNumber]
+            self.data_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
+            result = torch.var(x_1d, correction = 1)
+            super().__init__(result, error)
+        else:
+            if 'Variance' not in op_dict:
+                super().__init__(torch.tensor(precal_witness['Variance_0'][0]), error)
+                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Variance_0'][1]), requires_grad=False)
+            else:
+                super().__init__(torch.tensor(precal_witness['Variance_'+str(op_dict['Variance'])][0]), error)
+                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Variance_'+str(op_dict['Variance'])][1]), requires_grad=False)
+
 
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'Variance':
-        return cls(x[0], error)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'Variance':
+        return cls(x[0], error, precal_witness, op_dict)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
         x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
-        size = torch.sum((x!=MagicNumber).float())
+        size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         x_mean_cons = torch.abs(torch.sum(x_fil_0)-size*(self.data_mean))<=torch.abs(self.error*self.data_mean*size)
-        x_fil_mean = torch.where(x==MagicNumber, self.data_mean, x)
+        x_adj_mean = torch.where(x==MagicNumber, 0.0, x-self.data_mean)
         return torch.logical_and(
-            torch.abs(torch.sum((x_fil_mean-self.data_mean)*(x_fil_mean-self.data_mean))-self.result*(size - 1))<=torch.abs(self.error*self.result*(size - 1)), x_mean_cons
+            torch.abs(torch.sum((x_adj_mean)*(x_adj_mean))-self.result*(size - 1))<=torch.abs(self.error*self.result*(size - 1)), x_mean_cons
         )
 
 
 
 
 class Covariance(Operation):
-    def __init__(self, x: torch.Tensor, y: torch.Tensor, error: float):
-        x_1d = to_1d(x)
-        x_1d = x_1d[x_1d!=MagicNumber]
-        y_1d = to_1d(y)
-        y_1d = y_1d[y_1d!=MagicNumber]
-        x_1d_list = x_1d.tolist()
-        y_1d_list = y_1d.tolist()
+    def __init__(self, x: torch.Tensor, y: torch.Tensor, error: float, precal_witness:dict = None, op_dict:dict = {}):
+        if precal_witness is None: 
+            x_1d = to_1d(x)
+            x_1d = x_1d[x_1d!=MagicNumber]
+            y_1d = to_1d(y)
+            y_1d = y_1d[y_1d!=MagicNumber]
+            x_1d_list = x_1d.tolist()
+            y_1d_list = y_1d.tolist()
 
-        self.x_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(x_1d_list), dtype = torch.float32), requires_grad=False)
-        self.y_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(y_1d_list), dtype = torch.float32), requires_grad=False)
-        result = torch.tensor(statistics.covariance(x_1d_list, y_1d_list), dtype = torch.float32)
+            self.x_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(x_1d_list), dtype = torch.float32), requires_grad=False)
+            self.y_mean = torch.nn.Parameter(data=torch.tensor(statistics.mean(y_1d_list), dtype = torch.float32), requires_grad=False)
+            result = torch.tensor(statistics.covariance(x_1d_list, y_1d_list), dtype = torch.float32)
 
-        super().__init__(result, error)
+            super().__init__(result, error)
+        else:
+            if 'Covariance' not in op_dict:
+                super().__init__(torch.tensor(precal_witness['Covariance_0'][0]), error)
+                self.x_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Covariance_0'][1]), requires_grad=False)
+                self.y_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Covariance_0'][2]), requires_grad=False)
+            else:
+                super().__init__(torch.tensor(precal_witness['Covariance_'+str(op_dict['Covariance'])][0]), error)
+                self.x_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Covariance_'+str(op_dict['Covariance'])][1]), requires_grad=False)
+                self.y_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Covariance_'+str(op_dict['Covariance'])][2]), requires_grad=False)
 
     @classmethod
-    def create(cls, x: list[torch.Tensor], error: float) -> 'Covariance':
-        return cls(x[0], x[1], error)
+    def create(cls, x: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'Covariance':
+        return cls(x[0], x[1], error, precal_witness, op_dict)
 
     def ezkl(self, args: list[torch.Tensor]) -> IsResultPrecise:
         x, y = args[0], args[1]
         x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
         y_fil_0 = torch.where(y==MagicNumber, 0.0, y)
-        size_x = torch.sum((x!=MagicNumber).float())
-        size_y = torch.sum((y!=MagicNumber).float())
+        size_x = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
+        size_y = torch.sum(torch.where(y!=MagicNumber, 1.0, 0.0))
         x_mean_cons = torch.abs(torch.sum(x_fil_0)-size_x*(self.x_mean))<=torch.abs(self.error*self.x_mean*size_x)
         y_mean_cons = torch.abs(torch.sum(y_fil_0)-size_y*(self.y_mean))<=torch.abs(self.error*self.y_mean*size_y)
-        x_fil_mean = torch.where(x==MagicNumber, self.x_mean, x)
-        # only x_fil_mean is enough, no need for y_fil_mean since it will multiply 0 anyway
+        x_adj_mean = torch.where(x==MagicNumber, 0.0, x-self.x_mean)
+        y_adj_mean = torch.where(y==MagicNumber, 0.0, y-self.y_mean)
+
         return torch.logical_and(
             torch.logical_and(size_x==size_y,torch.logical_and(x_mean_cons,y_mean_cons)),
-            torch.abs(torch.sum((x_fil_mean-self.x_mean)*(y-self.y_mean))-(size_x-1)*self.result)<self.error*self.result*(size_x-1)
+            torch.abs(torch.sum((x_adj_mean)*(y_adj_mean))-(size_x-1)*self.result)<=torch.abs(self.error*self.result*(size_x-1))
         )
 
 # refer other constraints to correlation function, not put here since will be repetitive
-def stdev_for_corr(x_fil_mean:torch.Tensor,size_x:torch.Tensor, x_std: torch.Tensor, x_mean: torch.Tensor, error: float) -> torch.Tensor:
+def stdev_for_corr(x_adj_mean:torch.Tensor, size_x:torch.Tensor, x_std: torch.Tensor, error: float) -> torch.Tensor:
     return (
-            torch.abs(torch.sum((x_fil_mean-x_mean)*(x_fil_mean-x_mean))-x_std*x_std*(size_x - 1))<=torch.abs(2*error*x_std*x_std*(size_x - 1))
+            torch.abs(torch.sum((x_adj_mean)*(x_adj_mean))-x_std*x_std*(size_x - 1))<=torch.abs(2*error*x_std*x_std*(size_x - 1))
         , x_std)
 # refer other constraints to correlation function, not put here since will be repetitive
-def covariance_for_corr(x_fil_mean: torch.Tensor,y_fil_mean: torch.Tensor,size_x:torch.Tensor, size_y:torch.Tensor, cov: torch.Tensor, x_mean: torch.Tensor, y_mean: torch.Tensor, error: float) -> torch.Tensor:
+def covariance_for_corr(x_adj_mean: torch.Tensor,y_adj_mean: torch.Tensor,size_x:torch.Tensor, cov: torch.Tensor,  error: float) -> torch.Tensor:
         return (
-            torch.abs(torch.sum((x_fil_mean-x_mean)*(y_fil_mean-y_mean))-(size_x-1)*cov)<error*cov*(size_x-1)
+            torch.abs(torch.sum((x_adj_mean)*(y_adj_mean))-(size_x-1)*cov)<=torch.abs(error*cov*(size_x-1))
         , cov)
 
 
 class Correlation(Operation):
-    def __init__(self, x: torch.Tensor, y: torch.Tensor, error: float):
-        x_1d = to_1d(x)
-        x_1d = x_1d[x_1d!=MagicNumber]
-        y_1d = to_1d(y)
-        y_1d = y_1d[y_1d!=MagicNumber]
-        x_1d_list = x_1d.tolist()
-        y_1d_list = y_1d.tolist()
-        self.x_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
-        self.y_mean = torch.nn.Parameter(data=torch.mean(y_1d), requires_grad = False)
-        self.x_std = torch.nn.Parameter(data=torch.sqrt(torch.var(x_1d, correction = 1)), requires_grad = False)
-        self.y_std = torch.nn.Parameter(data=torch.sqrt(torch.var(y_1d, correction = 1)), requires_grad=False)
-        self.cov = torch.nn.Parameter(data=torch.tensor(statistics.covariance(x_1d_list, y_1d_list), dtype = torch.float32), requires_grad=False)
-        result = torch.tensor(statistics.correlation(x_1d_list, y_1d_list), dtype = torch.float32)
+    def __init__(self, x: torch.Tensor, y: torch.Tensor, error: float, precal_witness, op_dict:dict = {}):
+        if precal_witness is None:
+            x_1d = to_1d(x)
+            x_1d = x_1d[x_1d!=MagicNumber]
+            y_1d = to_1d(y)
+            y_1d = y_1d[y_1d!=MagicNumber]
+            x_1d_list = x_1d.tolist()
+            y_1d_list = y_1d.tolist()
+            self.x_mean = torch.nn.Parameter(data=torch.mean(x_1d), requires_grad=False)
+            self.y_mean = torch.nn.Parameter(data=torch.mean(y_1d), requires_grad = False)
+            self.x_std = torch.nn.Parameter(data=torch.sqrt(torch.var(x_1d, correction = 1)), requires_grad = False)
+            self.y_std = torch.nn.Parameter(data=torch.sqrt(torch.var(y_1d, correction = 1)), requires_grad=False)
+            self.cov = torch.nn.Parameter(data=torch.tensor(statistics.covariance(x_1d_list, y_1d_list), dtype = torch.float32), requires_grad=False)
+            result = torch.tensor(statistics.correlation(x_1d_list, y_1d_list), dtype = torch.float32)
 
-        super().__init__(result, error)
+            super().__init__(result, error)
+        else:
+            if 'Correlation' not in op_dict:
+                super().__init__(torch.tensor(precal_witness['Correlation_0'][0]), error)
+                self.x_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][1]), requires_grad=False)
+                self.y_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][2]), requires_grad=False)
+                self.x_std = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][3]), requires_grad=False)
+                self.y_std = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][4]), requires_grad=False)
+                self.cov = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][5]), requires_grad=False)
+            else:
+                super().__init__(torch.tensor(precal_witness['Correlation_'+str(op_dict['Correlation'])][0]), error)
+                self.x_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_'+str(op_dict['Correlation'])][1]), requires_grad=False)
+                self.y_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_'+str(op_dict['Correlation'])][2]), requires_grad=False)
+                self.x_std = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_'+str(op_dict['Correlation'])][3]), requires_grad=False)
+                self.y_std = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_'+str(op_dict['Correlation'])][4]), requires_grad=False)
+                self.cov = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_'+str(op_dict['Correlation'])][5]), requires_grad=False)
+
 
     @classmethod
-    def create(cls, args: list[torch.Tensor], error: float) -> 'Correlation':
-        return cls(args[0], args[1], error)
+    def create(cls, args: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'Correlation':
+        return cls(args[0], args[1], error, precal_witness, op_dict)
 
     def ezkl(self, args: list[torch.Tensor]) -> IsResultPrecise:
         x, y = args[0], args[1]
         x_fil_0 = torch.where(x==MagicNumber, 0.0, x)
         y_fil_0 = torch.where(y==MagicNumber, 0.0, y)
-        size_x = torch.sum((x!=MagicNumber).float())
-        size_y = torch.sum((y!=MagicNumber).float())
+        size_x = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
+        size_y = torch.sum(torch.where(y!=MagicNumber, 1.0, 0.0))
         x_mean_cons = torch.abs(torch.sum(x_fil_0)-size_x*(self.x_mean))<=torch.abs(self.error*self.x_mean*size_x)
         y_mean_cons = torch.abs(torch.sum(y_fil_0)-size_y*(self.y_mean))<=torch.abs(self.error*self.y_mean*size_y)
-        x_fil_mean = torch.where(x==MagicNumber, self.x_mean, x)
-        y_fil_mean = torch.where(y==MagicNumber, self.y_mean, y)
+        x_adj_mean = torch.where(x==MagicNumber, 0.0, x-self.x_mean)
+        y_adj_mean = torch.where(y==MagicNumber, 0.0, y-self.y_mean)
 
         miscel_cons = torch.logical_and(size_x==size_y, torch.logical_and(x_mean_cons, y_mean_cons))
-        bool1, cov = covariance_for_corr(x_fil_mean,y_fil_mean,size_x, size_y, self.cov, self.x_mean, self.y_mean, self.error)
-        bool2, x_std = stdev_for_corr( x_fil_mean, size_x, self.x_std, self.x_mean, self.error)
-        bool3, y_std = stdev_for_corr( y_fil_mean, size_y, self.y_std, self.y_mean, self.error)
-        bool4 = torch.abs(cov - self.result*x_std*y_std)<=self.error*cov
+        bool1, cov = covariance_for_corr(x_adj_mean,y_adj_mean,size_x, self.cov, self.error)
+        bool2, x_std = stdev_for_corr( x_adj_mean, size_x, self.x_std, self.error)
+        bool3, y_std = stdev_for_corr( y_adj_mean, size_y, self.y_std, self.error)
+        # this is correlation constraint
+        bool4 = torch.abs(cov - self.result*x_std*y_std)<=torch.abs(self.error*cov)
         return torch.logical_and(torch.logical_and(torch.logical_and(bool1, bool2),torch.logical_and(bool3, bool4)), miscel_cons)
 
 
@@ -422,34 +500,51 @@ def stacked_x(args: list[float]):
 
 
 class Regression(Operation):
-    def __init__(self, xs: list[torch.Tensor], y: torch.Tensor, error: float):
-        x_1ds = [to_1d(i) for i in xs]
-        fil_x_1ds=[]
-        for x_1 in x_1ds:
-            fil_x_1ds.append((x_1[x_1!=MagicNumber]).tolist())
-        x_1ds = fil_x_1ds
+    def __init__(self, xs: list[torch.Tensor], y: torch.Tensor, error: float, precal_witness:dict=None, op_dict:dict = {}):
+        if precal_witness is None:
+            x_1ds = [to_1d(i) for i in xs]
+            fil_x_1ds=[]
+            for x_1 in x_1ds:
+                fil_x_1ds.append((x_1[x_1!=MagicNumber]).tolist())
+            x_1ds = fil_x_1ds
 
-        y_1d = to_1d(y)
-        y_1d = (y_1d[y_1d!=MagicNumber]).tolist()
+            y_1d = to_1d(y)
+            y_1d = (y_1d[y_1d!=MagicNumber]).tolist()
 
-        x_one = stacked_x(x_1ds)
-        result_1d = np.matmul(np.matmul(np.linalg.inv(np.matmul(x_one.transpose(), x_one)), x_one.transpose()), y_1d)
-        result = torch.tensor(result_1d, dtype = torch.float32).reshape(1, -1, 1)
-        print('result: ', result)
-        super().__init__(result, error)
+            x_one = stacked_x(x_1ds)
+            result_1d = np.matmul(np.matmul(np.linalg.inv(np.matmul(x_one.transpose(), x_one)), x_one.transpose()), y_1d)
+            result = torch.tensor(result_1d, dtype = torch.float32).reshape(1, -1, 1)
+            # print('result: ', result)
+            super().__init__(result, error)
+        else:
+            if 'Regression' not in op_dict:
+                result = torch.tensor(precal_witness['Regression_0']).reshape(1,-1,1)
+            else:
+                result = torch.tensor(precal_witness['Regression_'+str(op_dict['Regression'])]).reshape(1,-1,1)
+
+            # for ele in precal_witness['Regression']:
+            #     precal_witness_arr.append(torch.tensor(ele))
+            # print('resultopppp: ', result)
+            super().__init__(result,error)
+            
 
     @classmethod
-    def create(cls, args: list[torch.Tensor], error: float) -> 'Regression':
+    def create(cls, args: list[torch.Tensor], error: float, precal_witness:dict = None, op_dict:dict = {}) -> 'Regression':
         xs = args[:-1]
         y = args[-1]
-        return cls(xs, y, error)
+        return cls(xs, y, error, precal_witness, op_dict)
 
     def ezkl(self, args: list[torch.Tensor]) -> IsResultPrecise:
          # infer y from the last parameter
         y = args[-1]
-        y = torch.where(y==MagicNumber, torch.tensor(0.0), y)
+        y = torch.where(y==MagicNumber,0.0, y)
         x_one = torch.cat((*args[:-1], torch.ones_like(args[0])), dim=2)
         x_one = torch.where((x_one[:,:,0] ==MagicNumber).unsqueeze(-1), torch.tensor([0.0]*x_one.size()[2]), x_one)
         x_t = torch.transpose(x_one, 1, 2)
-        return torch.sum(torch.abs(x_t @ x_one @ self.result - x_t @ y)) <= self.error * torch.sum(torch.abs(x_t @ y))
+
+        left = x_t @ x_one @ self.result - x_t @ y
+        right = self.error*x_t @ y
+        abs_left = torch.where(left>=0, left, -left)
+        abs_right = torch.where(right>=0, right, -right)
+        return torch.where(torch.sum(torch.where(abs_left<=abs_right, 1.0, 0.0))==torch.tensor(2.0), 1.0, 0.0)
 

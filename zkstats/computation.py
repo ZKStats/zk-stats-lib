@@ -25,6 +25,7 @@ from .ops import (
 
 
 DEFAULT_ERROR = 0.01
+MagicNumber = 99.999
 
 
 class State:
@@ -47,6 +48,7 @@ class State:
         self.precal_witness_path: str = None
         self.precal_witness:dict = {}
         self.isProver:bool = None
+        self.op_dict:dict={}
 
     def set_ready_for_exporting_onnx(self) -> None:
         self.current_op_index = 0
@@ -151,19 +153,73 @@ class State:
         if self.current_op_index is None:
             # for prover
             if self.isProver:
-                print('Prover side')
+                # print('Prover side create')
                 op = op_type.create(x, self.error)
-                if isinstance(op,Mean):
-                    self.precal_witness['Mean'] = [op.result.data.item()]
+
+                # Single witness aka result
+                if isinstance(op,Mean) or isinstance(op,GeometricMean) or isinstance(op, HarmonicMean) or isinstance(op, Mode):
+                    op_class_str =str(type(op)).split('.')[-1].split("'")[0]
+                    if op_class_str not in self.op_dict:
+                        self.precal_witness[op_class_str+"_0"] = [op.result.data.item()]
+                        self.op_dict[op_class_str] = 1
+                    else: 
+                        self.precal_witness[op_class_str+"_"+str(self.op_dict[op_class_str])] = [op.result.data.item()]
+                        self.op_dict[op_class_str]+=1
                 elif isinstance(op, Median):
-                    self.precal_witness['Median'] = [op.result.data.item(), op.lower.data.item(), op.upper.data.item()]
+                    if 'Median' not in self.op_dict:
+                        self.precal_witness['Median_0'] = [op.result.data.item(), op.lower.data.item(), op.upper.data.item()]
+                        self.op_dict['Median']=1
+                    else:
+                        self.precal_witness['Median_'+str(self.op_dict['Median'])] = [op.result.data.item(), op.lower.data.item(), op.upper.data.item()]
+                        self.op_dict['Median']+=1
+                # std + variance stuffs
+                elif isinstance(op, PStdev) or isinstance(op, PVariance) or isinstance(op, Stdev) or isinstance(op, Variance):
+                    op_class_str =str(type(op)).split('.')[-1].split("'")[0]
+                    if op_class_str not in self.op_dict:
+                        self.precal_witness[op_class_str+"_0"] = [op.result.data.item(), op.data_mean.data.item()]
+                        self.op_dict[op_class_str] = 1
+                    else: 
+                        self.precal_witness[op_class_str+"_"+str(self.op_dict[op_class_str])] = [op.result.data.item(), op.data_mean.data.item()]
+                        self.op_dict[op_class_str]+=1
+                elif isinstance(op, Covariance):
+                    if 'Covariance' not in self.op_dict:
+                        self.precal_witness['Covariance_0'] = [op.result.data.item(), op.x_mean.data.item(), op.y_mean.data.item()]
+                        self.op_dict['Covariance']=1
+                    else:
+                        self.precal_witness['Covariance_'+str(self.op_dict['Covariance'])] = [op.result.data.item(), op.x_mean.data.item(), op.y_mean.data.item()]
+                        self.op_dict['Covariance']+=1
+                elif isinstance(op, Correlation):
+                    if 'Correlation' not in self.op_dict:
+                        self.precal_witness['Correlation_0'] = [op.result.data.item(), op.x_mean.data.item(), op.y_mean.data.item(), op.x_std.data.item(), op.y_std.data.item(), op.cov.data.item()]
+                        self.op_dict['Correlation']=1
+                    else:
+                        self.precal_witness['Correlation_'+str(self.op_dict['Correlation'])] = [op.result.data.item(), op.x_mean.data.item(), op.y_mean.data.item(), op.x_std.data.item(), op.y_std.data.item(), op.cov.data.item()]
+                        self.op_dict['Correlation']+=1
+                elif isinstance(op, Regression):
+                    result_array = []
+                    for ele in op.result.data[0]:
+                        result_array.append(ele[0].item())
+                    if 'Regression' not in self.op_dict:
+                        self.precal_witness['Regression_0'] = [result_array]
+                        self.op_dict['Regression']=1
+                    else:
+                        self.precal_witness['Regression_'+str(self.op_dict['Regression'])] = [result_array]
+                        self.op_dict['Regression']+=1
             # for verifier
             else:
-                print('Verifier side')
+                # print('Verifier side create')
                 precal_witness = json.loads(open(self.precal_witness_path, "r").read())
-                op = op_type.create(x, self.error, precal_witness)
-                print('finish create')   
+                op = op_type.create(x, self.error, precal_witness, self.op_dict)
+                # dont need to include Where
+                if not isinstance(op, Where):
+                    op_class_str =str(type(op)).split('.')[-1].split("'")[0]
+                    if op_class_str not in self.op_dict:
+                        self.op_dict[op_class_str] = 1
+                    else:
+                        self.op_dict[op_class_str]+=1
             self.ops.append(op)
+            if isinstance(op, Where):
+                return torch.where(x[0], x[1], MagicNumber)
             return op.result
         else:
             # Copy the current op index to a local variable since self.current_op_index will be incremented.
@@ -190,7 +246,7 @@ class State:
             # else, return only result
 
             if current_op_index == len_ops - 1:
-                print('final op: ', op)
+                # print('final op: ', op)
                 # Sanity check for length of self.ops and self.bools
                 len_bools = len(self.bools)
                 if len_ops != len_bools:
@@ -198,13 +254,10 @@ class State:
                 is_precise_aggregated = torch.tensor(1.0)
                 for i in range(len_bools):
                     res = self.bools[i]()
-                    # print("hey computation: ", i)
-                    # print('self.ops: ', self.ops[i])
-                    # print('res: ', res)
                     is_precise_aggregated = torch.logical_and(is_precise_aggregated, res)
                 if isinstance(op, Where):
-                    # return as where result
-                    return is_precise_aggregated, op.result+x[1]-x[1]
+                    # print('Only where')
+                    return is_precise_aggregated, torch.where(x[0], x[1], x[1]-x[1]+MagicNumber)
                 else:
                     if self.isProver:
                         json.dump(self.precal_witness, open(self.precal_witness_path, 'w'))
@@ -216,13 +269,9 @@ class State:
             else:
                 # for where
                 if isinstance(op, Where):
-                    return (op.result+x[1]-x[1])
+                    # print('many ops incl where')
+                    return torch.where(x[0], x[1], x[1]-x[1]+MagicNumber)
                 else: 
-                    # return single float number
-                    # return torch.where(x[0], x[1], 9999999)
-                    # print('oppy else: ', op)
-                    # print('is check else: ', isinstance(op,Mean))
-                    # self.aggregate_witness.append(op.result)
                     return op.result+(x[0]-x[0])[0][0][0]
 
 

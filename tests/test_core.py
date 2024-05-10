@@ -71,7 +71,7 @@ def test_integration_select_partial_columns(tmp_path, column_0, column_1, error,
 
     def simple_computation(state, x):
         return state.mean(x[0])
-
-    _, model = computation_to_model(simple_computation, error)
+    precal_witness_path = tmp_path / "precal_witness_path.json"
+    _, model = computation_to_model(simple_computation,precal_witness_path, True, error)
     # gen settings, setup, prove, verify
     compute(tmp_path, [column_0, column_1], model, scales, selected_columns)
