@@ -3,48 +3,24 @@
 keras2circom is a python tool that transpiles a tf.keras model into a circom circuit.
 
 ## Experimental Version for stats
+`transpiler.py` is written for simplicity since we don't need witness approach and other ML layers for now. In this implementation we simply traverse the keras model and generate the corresponding circom.
 
-Install the dependencies. You can use pip:
+### Steps to support a new layer
+1. Add the `keras.layers.Layer` subclass to `SUPPORTED_OPS` in [`transpiler.py`](./keras2circom/transpiler.py).
+2. Add a circom component template for the layer in [`mpc.circom`](../mpc.circom).
+  - The template must have the same name as the layer's class name. For example, if the layer is `TFAdd`, the template name must be `TFAdd`.
+  - The template must have the same number of inputs/outputs, and shapes as the ones in its keras layer. For example, `TFAdd` layer has two input tensors with the same shape `()`, so the template must have two inputs with the same shape, `signal input left` and `signal input right`. The order of the inputs must be the same as well.
+  - If the input to the component has a variable length, the input length should be an argument to the component. For example, `TFReduceSum` layer has an input tensor with shape `(N,)`, so the template must have an argument `nInputs` and the signal should be `signal input in[nInputs]`.
+3. If a layer has arguments, it's a must to specify how these arguments value can be derived in [`get_component_args_values`](./keras2circom/transpiler.py). For example,
+  - `TFAdd` layer has no arguments, so the function returns an empty dictionary.
+  - `TFReduceSum` layer has an argument `nInputs`, and this value can be determined by the number of elements in the input keras tensor.
+  - `TFLog` layer has an argument `e`, and this value is a constant `2` for now.
+  - If the layer has no arguments, the function should return an empty dictionary.
 
-```bash
-pip install -r requirements.txt
-```
+## Reference
+- Original repository: [ora-io/keras2circom](https://github.com/ora-io/keras2circom)
+- Our previous forked repository: [JernKunpittaya/keras2circom](https://github.com/JernKunpittaya/keras2circom/tree/stats_keras2circom)
 
-You will also need to install circom and snarkjs. You can run the following commands to install them:
-
-```bash
-bash setup-circom.sh
-```
-
-Last but not least, run
-
-```bash
-npm install
-```
-
-First, Look at their supported function in example/dense folder
-
-- Just run notebook in dense_keras.ipynb to generate keras file
-- Then, run `python main.py ./example/dense/dense_keras.keras` to generate `output` folder, consisting of
-  - `circuit.circom` which contains circom file
-  - `circuit.json` which contains every predetermined value that we know before hand (like weight, bias, etc.)
-  - `circuit.py` which contains the algorithm to calcualte (off-chain) the final value of functions we are interested in, so we can provide them as witness (as input signal) in circuit.circom as well. We run circuit.py by creating `input.json` (inside output folder) like { "in": ["4", "4", "7"] }, then run `python output/circuit.py output/circuit.json output/input.json`, and we will get output.json
-  - Briefly, with `input.json`, `circuit.json`, and `output.json` we can verify in `circuit.circom` and get output as well
-
-Now, we will look at our customed layer 'MeanCheck'
-
-Note that it doesnt really make sense to have this layer because we want customed layer for each operation, not for the set of operations like MeanCheck, but this to give an overall idea how to do it, and it's more trivial trying to write smaller operation. Btw, we still dont support Decimal point mean witness, but can do with adding dec like in other template examples
-
-First, since default implementation of this library install circom template in node_modules already, we will hand-code our MeanCheck template by copying example/MeanCheck/MeanCheck.circom into node_modules/circomlib-ml/circuits/MeanCheck.circom
-
-Then, the rest is just the same as above
-
-- Just run notebook in gen_MeanCheck.ipynb to generate keras file
-- Then, run `python main.py ./example/MeanCheck/mean_keras.keras` to generate `output` folder, consisting of
-  - `circuit.circom`
-  - `circuit.json`, which nothing since it this circuit has 2 inputs: one is input so unknown, while the other is witness which is unknown at first as well
-  - `circuit.py` which allows us to calculate mean_check_out, Inside `output` folder, we create `input.json` like `{ "in": ["4", "4", "7"] }`, then run `python output/circuit.py output/circuit.json output/input.json`, and we will get `output.json`
-  - Briefly, with `input.json`, `circuit.json`, and `output.json` we can verify in circuit.circom and get `output` as well
 
 ## ==============================================================
 
