@@ -1,8 +1,9 @@
-from .circom import *
-from .model import *
-from .script import *
-
 import os
+import typing
+
+from .circom import templates
+from .model import Layer, Model
+
 
 from keras.layers import Dropout, InputLayer
 
@@ -60,16 +61,19 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
     inputs = layer.inputs
     input_0 = inputs[0]
     input_0_shape = get_effective_shape(input_0.shape)
+    # If the input is a scalar, num elements in the input tensor is 1
     if len(input_0_shape) == 0:
-        num_inputs = 1
+        num_elements_in_input_0 = 1
+    # Else, the number of elements in the input tensor is the first dimension
+    # E.g. input_0.shape = (1, 2, 1), input_0_shape=(2, 1), num_elements_in_input_0=2
     else:
-        num_inputs = input_0_shape[0]
+        num_elements_in_input_0 = input_0_shape[0]
 
     # NOTE: Add more cases here if new circom components are supported
     if layer.op == TFReduceSum.__name__:
-        return {'nInputs': num_inputs}
+        return {'nInputs': num_elements_in_input_0}
     if layer.op == TFReduceMean.__name__:
-        return {'nInputs': num_inputs}
+        return {'nInputs': num_elements_in_input_0}
     if layer.op == TFLog.__name__:
         return {'e': 2}
     return {}
@@ -263,11 +267,13 @@ def generate_constraints(lhs: str, lhs_dim: int, rhs: str, rhs_dim: int, tensor_
 
     :return: A list of strings representing the constraints. E.g.
     ```
-    for (var i0 = 0; i0 < shape[0]; i++) {
-      for (var i1 = 0; i < shape[1]; i++) {
-          lhs[i0][i1] <== rhs[i0][i1];
-      }
-    }
+    [
+        "for (var i0 = 0; i0 < shape[0]; i++) {",
+        "   for (var i1 = 0; i < shape[1]; i++) {",
+        "       lhs[i0][i1] <== rhs[i0][i1];",
+        "   }",
+        "}",
+    ]
     ```
     """
     # (1, 2, 1) -> (2, 1)
@@ -284,4 +290,3 @@ def generate_constraints(lhs: str, lhs_dim: int, rhs: str, rhs_dim: int, tensor_
     assignment = f"{INDENTATION * (len(effective_shape))}{lhs}{lhs_indices} <== {rhs}{rhs_indices};"
     for_loop_closing_brackets = [f"{INDENTATION * i}}}" for i in range(len(effective_shape)-1, -1, -1)]
     return for_loop_statements + [assignment] + for_loop_closing_brackets
-
