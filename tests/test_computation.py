@@ -40,33 +40,35 @@ def nested_computation(state: State, args: list[torch.Tensor]):
     out_9 = state.correlation(y, z)
     out_10 = state.linear_regression(x, y)
     slope, intercept = out_10[0][0][0], out_10[0][1][0]
-    reshaped = torch.tensor([
-        out_0,
-        out_1,
-        out_2,
-        out_3,
-        out_4,
-        out_5,
-        out_6,
-        out_7,
-        out_8,
-        out_9,
-        slope,
-        intercept,
-    ]).reshape(1,-1,1)
+    reshaped = torch.cat((
+        out_0.unsqueeze(0),
+        out_1.unsqueeze(0),
+        out_2.unsqueeze(0),
+        out_3.unsqueeze(0),
+        out_4.unsqueeze(0),
+        out_5.unsqueeze(0),
+        out_6.unsqueeze(0),
+        out_7.unsqueeze(0),
+        out_8.unsqueeze(0),
+        out_9.unsqueeze(0),
+        slope.unsqueeze(0),
+        intercept.unsqueeze(0),
+    )).reshape(1,-1,1)
     out_10 = state.mean(reshaped)
     return out_10
 
 
 @pytest.mark.parametrize(
     "error",
-    [0.1],
+    [ERROR_CIRCUIT_DEFAULT],
 )
 def test_nested_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, column_2: torch.Tensor, error, scales):
-    state, model = computation_to_model(nested_computation, error)
+    precal_witness_path = tmp_path / "precal_witness_path.json"
+    state, model = computation_to_model(nested_computation, precal_witness_path,True, error)
     x, y, z = column_0, column_1, column_2
     compute(tmp_path, [x, y, z], model, scales)
     # There are 11 ops in the computation
+
     assert state.current_op_index == 12
 
     ops = state.ops
@@ -157,8 +159,8 @@ def test_computation_with_where_1d(tmp_path, error, column_0, op_type: Callable[
     def where_and_op(state: State, args: list[torch.Tensor]):
         x = args[0]
         return op_type(state, state.where(condition(x), x))
-
-    state, model = computation_to_model(where_and_op, error)
+    precal_witness_path = tmp_path / "precal_witness_path.json"
+    state, model = computation_to_model(where_and_op, precal_witness_path,True,  error)
     compute(tmp_path, [column], model, scales)
 
     res_op = state.ops[-1]
@@ -185,8 +187,8 @@ def test_computation_with_where_2d(tmp_path, error, column_0, column_1, op_type:
         filtered_x = state.where(condition_x, x)
         filtered_y = state.where(condition_x, y)
         return op_type(state, filtered_x, filtered_y)
-
-    state, model = computation_to_model(where_and_op, error)
+    precal_witness_path = tmp_path / "precal_witness_path.json"
+    state, model = computation_to_model(where_and_op, precal_witness_path, True ,error)
     compute(tmp_path, [column_0, column_1], model, scales)
 
     res_op = state.ops[-1]

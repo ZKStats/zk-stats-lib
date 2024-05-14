@@ -3,6 +3,7 @@ from typing import Callable, Type, Optional, Union
 
 import torch
 from torch import nn
+import json
 
 from .ops import (
     Operation,
@@ -18,12 +19,12 @@ from .ops import (
     Covariance,
     Correlation,
     Regression,
-    Where,
     IsResultPrecise,
 )
 
 
 DEFAULT_ERROR = 0.01
+MagicNumber = 99.999
 
 
 class State:
@@ -43,6 +44,10 @@ class State:
         self.error: float = error
         # Pointer to the current operation index. If None, it's in stage 1. If not None, it's in stage 3.
         self.current_op_index: Optional[int] = None
+        self.precal_witness_path: str = None
+        self.precal_witness:dict = {}
+        self.isProver:bool = None
+        self.op_dict:dict={}
 
     def set_ready_for_exporting_onnx(self) -> None:
         self.current_op_index = 0
@@ -133,19 +138,82 @@ class State:
         return self._call_op([x, y], Regression)
 
     # WHERE operation
-    def where(self, filter: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+    def where(self, _filter: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         """
         Calculate the where operation of x. The behavior should conform to `torch.where` in PyTorch.
 
-        :param filter: A boolean tensor serves as a filter
+        :param _filter: A boolean tensor serves as a filter
         :param x: A tensor to be filtered
         :return: filtered tensor
         """
-        return self._call_op([filter, x], Where)
+        return torch.where(_filter, x, x-x+MagicNumber)
 
     def _call_op(self, x: list[torch.Tensor], op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
         if self.current_op_index is None:
-            op = op_type.create(x, self.error)
+            # for prover
+            if self.isProver:
+                # print('Prover side create')
+                op = op_type.create(x, self.error)
+
+                # Single witness aka result
+                if isinstance(op,Mean) or isinstance(op,GeometricMean) or isinstance(op, HarmonicMean) or isinstance(op, Mode):
+                    op_class_str =str(type(op)).split('.')[-1].split("'")[0]
+                    if op_class_str not in self.op_dict:
+                        self.precal_witness[op_class_str+"_0"] = [op.result.data.item()]
+                        self.op_dict[op_class_str] = 1
+                    else: 
+                        self.precal_witness[op_class_str+"_"+str(self.op_dict[op_class_str])] = [op.result.data.item()]
+                        self.op_dict[op_class_str]+=1
+                elif isinstance(op, Median):
+                    if 'Median' not in self.op_dict:
+                        self.precal_witness['Median_0'] = [op.result.data.item(), op.lower.data.item(), op.upper.data.item()]
+                        self.op_dict['Median']=1
+                    else:
+                        self.precal_witness['Median_'+str(self.op_dict['Median'])] = [op.result.data.item(), op.lower.data.item(), op.upper.data.item()]
+                        self.op_dict['Median']+=1
+                # std + variance stuffs
+                elif isinstance(op, PStdev) or isinstance(op, PVariance) or isinstance(op, Stdev) or isinstance(op, Variance):
+                    op_class_str =str(type(op)).split('.')[-1].split("'")[0]
+                    if op_class_str not in self.op_dict:
+                        self.precal_witness[op_class_str+"_0"] = [op.result.data.item(), op.data_mean.data.item()]
+                        self.op_dict[op_class_str] = 1
+                    else: 
+                        self.precal_witness[op_class_str+"_"+str(self.op_dict[op_class_str])] = [op.result.data.item(), op.data_mean.data.item()]
+                        self.op_dict[op_class_str]+=1
+                elif isinstance(op, Covariance):
+                    if 'Covariance' not in self.op_dict:
+                        self.precal_witness['Covariance_0'] = [op.result.data.item(), op.x_mean.data.item(), op.y_mean.data.item()]
+                        self.op_dict['Covariance']=1
+                    else:
+                        self.precal_witness['Covariance_'+str(self.op_dict['Covariance'])] = [op.result.data.item(), op.x_mean.data.item(), op.y_mean.data.item()]
+                        self.op_dict['Covariance']+=1
+                elif isinstance(op, Correlation):
+                    if 'Correlation' not in self.op_dict:
+                        self.precal_witness['Correlation_0'] = [op.result.data.item(), op.x_mean.data.item(), op.y_mean.data.item(), op.x_std.data.item(), op.y_std.data.item(), op.cov.data.item()]
+                        self.op_dict['Correlation']=1
+                    else:
+                        self.precal_witness['Correlation_'+str(self.op_dict['Correlation'])] = [op.result.data.item(), op.x_mean.data.item(), op.y_mean.data.item(), op.x_std.data.item(), op.y_std.data.item(), op.cov.data.item()]
+                        self.op_dict['Correlation']+=1
+                elif isinstance(op, Regression):
+                    result_array = []
+                    for ele in op.result.data[0]:
+                        result_array.append(ele[0].item())
+                    if 'Regression' not in self.op_dict:
+                        self.precal_witness['Regression_0'] = [result_array]
+                        self.op_dict['Regression']=1
+                    else:
+                        self.precal_witness['Regression_'+str(self.op_dict['Regression'])] = [result_array]
+                        self.op_dict['Regression']+=1
+            # for verifier
+            else:
+                # print('Verifier side create')
+                precal_witness = json.loads(open(self.precal_witness_path, "r").read())
+                op = op_type.create(x, self.error, precal_witness, self.op_dict)
+                op_class_str =str(type(op)).split('.')[-1].split("'")[0]
+                if op_class_str not in self.op_dict:
+                    self.op_dict[op_class_str] = 1
+                else:
+                    self.op_dict[op_class_str]+=1
             self.ops.append(op)
             return op.result
         else:
@@ -171,7 +239,9 @@ class State:
 
             # If this is the last operation, aggregate all `is_precise` in `self.bools`, and return (is_precise_aggregated, result)
             # else, return only result
+
             if current_op_index == len_ops - 1:
+                # print('final op: ', op)
                 # Sanity check for length of self.ops and self.bools
                 len_bools = len(self.bools)
                 if len_ops != len_bools:
@@ -180,13 +250,15 @@ class State:
                 for i in range(len_bools):
                     res = self.bools[i]()
                     is_precise_aggregated = torch.logical_and(is_precise_aggregated, res)
-                return is_precise_aggregated, op.result
+                if self.isProver:
+                    json.dump(self.precal_witness, open(self.precal_witness_path, 'w'))
+                return is_precise_aggregated, op.result+(x[0]-x[0])[0][0][0]
+
             elif current_op_index > len_ops - 1:
                 # Sanity check that current op index does not exceed the length of ops
                 raise Exception(f"current_op_index out of bound: {current_op_index=} > {len_ops=}")
             else:
-                # It's not the last operation, just return the result
-                return op.result
+                return op.result+(x[0]-x[0])[0][0][0]
 
 
 class IModel(nn.Module):
@@ -207,7 +279,7 @@ class IModel(nn.Module):
 TComputation = Callable[[State, list[torch.Tensor]], torch.Tensor]
 
 
-def computation_to_model(computation: TComputation, error: float = DEFAULT_ERROR) -> tuple[State, Type[IModel]]:
+def computation_to_model(computation: TComputation, precal_witness_path:str, isProver:bool ,error: float = DEFAULT_ERROR ) -> tuple[State, Type[IModel]]:
     """
     Create a torch model from a `computation` function defined by user
     :param computation: A function that takes a State and a list of torch.Tensor, and returns a torch.Tensor
@@ -216,6 +288,10 @@ def computation_to_model(computation: TComputation, error: float = DEFAULT_ERROR
     State is a container for intermediate results of computation, which can be useful when debugging.
     """
     state = State(error)
+    # if it's verifier
+    
+    state.precal_witness_path= precal_witness_path
+    state.isProver = isProver
 
     class Model(IModel):
         def preprocess(self, x: list[torch.Tensor]) -> None:
@@ -223,6 +299,12 @@ def computation_to_model(computation: TComputation, error: float = DEFAULT_ERROR
             state.set_ready_for_exporting_onnx()
 
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
-            return computation(state, x)
+            # print('x sy: ')
+            result =  computation(state, x)
+            if len(result) ==1:
+                return x[0][0][0][0]-x[0][0][0][0]+torch.tensor(1.0), result
+            else:
+                return result
+    # print('state:: ', state.aggregate_witness_path)
     return state, Model
 

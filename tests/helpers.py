@@ -1,11 +1,11 @@
 import json
-from typing import Type, Sequence, Optional
+from typing import Type, Sequence, Optional, Callable
 from pathlib import Path
 
 import torch
 
-from zkstats.core import prover_gen_settings, setup, prover_gen_proof, verifier_verify, generate_data_commitment
-from zkstats.computation import IModel
+from zkstats.core import create_dummy,prover_gen_settings, setup, prover_gen_proof, verifier_verify, generate_data_commitment, verifier_define_calculation
+from zkstats.computation import IModel, State, computation_to_model
 
 
 DEFAULT_POSSIBLE_SCALES = list(range(20))
@@ -22,17 +22,20 @@ def data_to_json_file(data_path: Path, data: list[torch.Tensor]) -> dict[str, li
         column: d.tolist()
         for column, d in zip(column_names, data)
     }
+    print('columnnnn: ', column_to_data)
     with open(data_path, "w") as f:
         json.dump(column_to_data, f)
     return column_to_data
 
-
+TComputation = Callable[[State, list[torch.Tensor]], torch.Tensor]
 def compute(
     basepath: Path,
     data: list[torch.Tensor],
     model: Type[IModel],
+    # computation: TComputation,
     scales_params: Optional[Sequence[int]] = None,
     selected_columns_params: Optional[list[str]] = None,
+    # error:float = 1.0
 ) -> None:
     sel_data_path = basepath / "comb_data.json"
     model_path = basepath / "model.onnx"
@@ -60,43 +63,21 @@ def compute(
     else:
         scales = scales_params
         scales_for_commitments = scales_params
+    # create_dummy((data_path), (dummy_data_path))
+    generate_data_commitment((data_path), scales_for_commitments, (data_commitment_path))
+    # _, prover_model = computation_to_model(computation, (precal_witness_path), True, error)
 
-    generate_data_commitment(data_path, scales_for_commitments, data_commitment_path)
+    prover_gen_settings((data_path), selected_columns, (sel_data_path), model, (model_path), scales, "resources", (settings_path))
 
-    prover_gen_settings(
-        data_path=data_path,
-        selected_columns=selected_columns,
-        sel_data_path=str(sel_data_path),
-        prover_model=model,
-        prover_model_path=str(model_path),
-        scale=scales,
-        mode="resources",
-        settings_path=str(settings_path),
-    )
+    # No need, since verifier & prover share the same onnx
+    # _, verifier_model = computation_to_model(computation, (precal_witness_path), False,error)
+    # verifier_define_calculation((dummy_data_path), selected_columns, (sel_dummy_data_path),verifier_model, (verifier_model_path))
 
-    setup(
-        str(model_path),
-        str(compiled_model_path),
-        str(settings_path),
-        str(vk_path),
-        str(pk_path),
-    )
-    prover_gen_proof(
-        str(model_path),
-        str(sel_data_path),
-        str(witness_path),
-        str(compiled_model_path),
-        str(settings_path),
-        str(proof_path),
-        str(pk_path),
-    )
-    verifier_verify(
-        str(proof_path),
-        str(settings_path),
-        str(vk_path),
-        selected_columns,
-        data_commitment_path,
-    )
+    setup((model_path), (compiled_model_path), (settings_path),(vk_path), (pk_path ))
+
+    prover_gen_proof((model_path), (sel_data_path), (witness_path), (compiled_model_path), (settings_path), (proof_path), (pk_path))
+    # print('slett col: ', selected_columns)
+    verifier_verify((proof_path), (settings_path), (vk_path), selected_columns, (data_commitment_path))
 
 
 # Error tolerance between zkstats python implementation and python statistics module

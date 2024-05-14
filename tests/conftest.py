@@ -24,4 +24,4 @@ def column_2():
 
 @pytest.fixture
 def scales():
-    return [6]
+    return [7]
