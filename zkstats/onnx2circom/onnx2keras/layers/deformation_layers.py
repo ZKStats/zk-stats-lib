@@ -140,23 +140,72 @@ class TFConcat(keras.layers.Layer):
         })
         return config
 
+# @OPERATOR.register_operator("Reshape")
+# class TFReshape():
+#     def __init__(self, tensor_grap, node_weights, node_inputs, node_attribute, *args, **kwargs):
+#         super().__init__()
+#         self.out_shape = node_weights[node_inputs[1]]
+#         self.trans_in, self.trans_out = None, None
+#         LOG.info("Reshape will process tensor after change back to NCHW format.")
+#         shape_len = len(tensor_grap[node_inputs[0]].shape)
+#         self.trans_in = [0, shape_len-1] + [n for n in range(1, shape_len-1)]
+#         self.trans_out = [0] + [n for n in range(2, len(self.out_shape))] + [1]
+
+#     def __call__(self, inputs):
+#         inputs = tf.transpose(inputs, perm=self.trans_in)
+#         inputs = tf.reshape(inputs, shape=self.out_shape)
+#         inputs = tf.transpose(inputs, perm=self.trans_out)
+#         return inputs
+
 @OPERATOR.register_operator("Reshape")
-class TFReshape():
+class TFReshape(keras.layers.Layer):
     def __init__(self, tensor_grap, node_weights, node_inputs, node_attribute, *args, **kwargs):
         super().__init__()
-        self.out_shape = node_weights[node_inputs[1]]
-        self.trans_in, self.trans_out = None, None
-        LOG.info("Reshape will process tensor after change back to NCHW format.")
-        shape_len = len(tensor_grap[node_inputs[0]].shape)
-        self.trans_in = [0, shape_len-1] + [n for n in range(1, shape_len-1)]
-        self.trans_out = [0] + [n for n in range(2, len(self.out_shape))] + [1]
 
-    def __call__(self, inputs):
+        self.tensor_grap = tensor_grap
+        self.node_weights = node_weights
+        self.node_inputs = node_inputs
+        self.node_attribute = node_attribute
+        # print("node att reshape: ", node_attribute)
+        # print('node weights: ', node_weights)
+        # print('node inputs: ', node_inputs)
+
+
+        self.out_shape = tensor_grap[node_inputs[1]]
+        print('out: ', self.out_shape)
+        # print('out 0 ', self.out_shape)
+
+        # self.trans_in, self.trans_out = None, None
+        # LOG.info("Reshape will process tensor after change back to NCHW format.")
+        # shape_len = len(tensor_grap[node_inputs[0]].shape)
+        # self.trans_in = [0, shape_len-1] + [n for n in range(1, shape_len-1)]
+        # self.trans_out = [0] + [n for n in range(2, len(self.out_shape))] + [1]
+
+    def call(self, *args):
+        if 'config' in self.out_shape:
+            # print("configggg")
+            out_shape = self.out_shape['config']['value']
+        else:
+            # print("numpy float")
+            out_shape = self.out_shape
+        # print('call outshape: ', self.out_shape)
+        return keras.ops.reshape(args[0], out_shape)
         inputs = tf.transpose(inputs, perm=self.trans_in)
         inputs = tf.reshape(inputs, shape=self.out_shape)
         inputs = tf.transpose(inputs, perm=self.trans_out)
         return inputs
 
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "tensor_grap":self.tensor_grap,
+            'node_weights':self.node_weights,
+            'node_inputs':self.node_inputs,
+            'node_attribute':self.node_attribute, 
+            'out_shape': self.out_shape
+        })
+        return config
+    
 @OPERATOR.register_operator("Flatten")
 class TFFlatten():
     def __init__(self, tensor_grap, node_weights, node_inputs, node_attribute, *args, **kwargs)->None:

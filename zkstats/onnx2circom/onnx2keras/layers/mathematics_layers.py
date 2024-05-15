@@ -299,6 +299,14 @@ class TFAbs(keras.layers.Layer):
     def call(self,input,  *args, **kwargs):
         return keras.ops.absolute(input)
 
+@OPERATOR.register_operator("Neg")
+class TFNeg(keras.layers.Layer):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+    def call(self,input,  *args, **kwargs):
+        return 0-input
+
 @OPERATOR.register_operator("Reciprocal")
 class TFReciprocal(keras.layers.Layer):
     def __init__(self, *args, **kwargs):

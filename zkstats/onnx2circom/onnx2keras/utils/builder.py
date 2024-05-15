@@ -133,12 +133,12 @@ def keras_builder(onnx_model, native_groupconv:bool=False):
     keras_model = keras.Model(inputs=input_nodes, outputs=outputs_nodes)
     keras_model.trainable = False
     keras_model.summary()
-    print("All Layers: ", keras_model.layers)
-    print('\n\n\n')
-    print("Config ALL Layers: ")
-    for layer in keras_model.layers:
-        print('Name: ',layer.name)
-        print(layer.get_config())
+    # print("All Layers: ", keras_model.layers)
+    # print('\n\n\n')
+    # print("Config ALL Layers: ")
+    # for layer in keras_model.layers:
+    #     print('Name: ',layer.name)
+    #     print(layer.get_config())
     # for layer in keras_model.layers:
     #     layer.trainable = True
     # print('Later All Layers: ',keras_model.layers )

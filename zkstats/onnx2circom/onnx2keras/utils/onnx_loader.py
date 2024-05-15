@@ -65,13 +65,13 @@ def load_onnx_modelproto(onnx_model_path:str, input_node_names:list=None, output
 # ==== simplify lib --> make Constant Layer becomes Initializer: weird!
 
     if need_simplify:
-        success = False
-        try:
-            model_proto, success = simplify(model_proto, check_n=1)
-        except:
-            success = False
-        if not success:
-            LOG.warning(f"onnxsim is failed, maybe make convert fails.")
-            model_proto = onnx.load(onnx_model_path)
+        # success = False
+        # try:
+        #     model_proto, success = simplify(model_proto, check_n=1)
+        # except:
+        #     success = False
+        # if not success:
+        #     LOG.warning(f"onnxsim is failed, maybe make convert fails.")
+        #     model_proto = onnx.load(onnx_model_path)
         clean_model_input(model_proto)
     return model_proto
