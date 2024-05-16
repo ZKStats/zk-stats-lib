@@ -21,15 +21,20 @@ MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
 def test_onnx_to_circom(tmp_path):
     data = torch.tensor(
         # [32, 5],
-        [32],
+        # [32, 5, 10000, 1, 4235],
+        [1,2,5,4,3],
         dtype = torch.float32,
     ).reshape(1, -1, 1)
     class Model(nn.Module):
         def forward(self, x):
-            m = torch.mean(x)  # 32
-            s = torch.sum(x)  # 32
-            l = torch.log(x)  # 5
-            return m * s + l  # 1029
+            m = torch.mean(x)
+            s = torch.sum(x)
+            l = torch.log(x)
+            # return m * s + l  # 1029
+            cond = x > m
+            # return cond  # [0,0,1,1,0]
+            return torch.where(cond, s, m)  # [3, 3, 15, 15, 3]
+            # return torch.where(cond, s, 0)  # [3, 3, 15, 15, 3]
 
     compile_and_check(Model, data, tmp_path)
 

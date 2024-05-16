@@ -20,6 +20,8 @@ from zkstats.onnx2circom.onnx2keras.layers import (
     TFReduceMean,
     TFReduceMax,
     TFReduceMin,
+    TFWhere,
+    TFGreater,
     # TFArgMax,
     # TFArgMin,
 )
@@ -46,6 +48,8 @@ SUPPORTED_OPS = [
     TFSqrt,  # sqrt(n)
     TFExp,  # e^n
     # TFErf,
+    TFWhere,
+    TFGreater,
 ]
 
 SKIPPED_OPS = [
@@ -73,6 +77,10 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
     if layer.op == TFReduceSum.__name__:
         return {'nInputs': num_elements_in_input_0}
     if layer.op == TFReduceMean.__name__:
+        return {'nInputs': num_elements_in_input_0}
+    if layer.op == TFGreater.__name__:
+        return {'nLeft': num_elements_in_input_0}
+    if layer.op == TFWhere.__name__:
         return {'nInputs': num_elements_in_input_0}
     if layer.op == TFLog.__name__:
         return {'e': 2}

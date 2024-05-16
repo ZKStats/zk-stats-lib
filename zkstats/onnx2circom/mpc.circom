@@ -66,6 +66,31 @@ template TFReduceMean(nInputs) {
     out <== div.out;
 }
 
+template TFGreater(nLeft) {
+    signal input left[nLeft];
+    signal input right;
+    signal output out[nLeft];
+
+    for (var i = 0; i < nLeft; i++) {
+        out[i] <== left[i] > right;
+    }
+}
+
+template TFWhere(nInputs) {
+    // condition
+    signal input condition[nInputs];
+    // input
+    signal input _input;
+    // other
+    signal input other;
+    signal output out[nInputs];
+
+    for (var i = 0; i < nInputs; i++) {
+        // out[i] <== condition[i] ? _input : other;
+        out[i] <== condition[i] * _input + (1 - condition[i]) * other;
+    }
+}
+
 
 // TODO: e should be 2.71828 instead of 2 for now
 template TFLog(e) {
