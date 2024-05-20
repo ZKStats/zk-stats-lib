@@ -23,6 +23,7 @@ class Layer:
     name: str
     inputs: list[KerasTensor]
     outputs: list[KerasTensor]
+    config: dict
 
     def __init__(self, layer: keras.layers.Layer):
         self.op = layer.__class__.__name__
@@ -31,6 +32,16 @@ class Layer:
         self.inputs = layer.input if isinstance(layer.input, list) else [layer.input]
         # Always convert to list for easier handling. Doing this since if there is only one output, it is not a list in keras layer
         self.outputs = layer.output if isinstance(layer.output, list) else [layer.output]
+        self.config = layer.get_config()
+        self.full_inputs = []
+        list_inputs =  layer.get_config()['node_inputs']
+        index = 0
+        for ele in list_inputs:
+            config_ele = layer.get_config()['tensor_grap'][ele]
+            if isinstance(config_ele, dict) and config_ele["class_name"]=='__keras_tensor__':
+                config_ele['name'] = self.inputs[index].name
+                index+=1
+            self.full_inputs.append(config_ele)
 
 
 class Model:
@@ -62,7 +73,8 @@ class Model:
                 if output.name in self.map_output_to_component:
                     raise ValueError(f"Output name {output.name} is already used by another layer.")
                 self.map_output_to_component[output.name] = layer
-
+        print('\n\n\n\n\n MPAPPPA: ', self.map_output_to_component.keys())
+        print('\n\n\n\n\n\n')
     def get_component_from_output_name(self, output_name: str) -> typing.Optional[Layer]:
         try:
             return self.map_output_to_component[output_name]

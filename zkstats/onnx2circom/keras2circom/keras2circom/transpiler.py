@@ -20,6 +20,7 @@ from zkstats.onnx2circom.onnx2keras.layers import (
     TFReduceMean,
     TFReduceMax,
     TFReduceMin,
+    TFEqual
     # TFArgMax,
     # TFArgMin,
 )
@@ -45,6 +46,7 @@ SUPPORTED_OPS = [
     TFReciprocal,  # 1/n
     TFSqrt,  # sqrt(n)
     TFExp,  # e^n
+    TFEqual
     # TFErf,
 ]
 
@@ -59,6 +61,8 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
     Get the value of the arguments for a component based on the information from its keras layer
     """
     inputs = layer.inputs
+    # print('\n\n\n\n\n\n inputs transpiler: ', inputs)
+    # print('\n\n\n\n\n')
     input_0 = inputs[0]
     input_0_shape = get_effective_shape(input_0.shape)
     # If the input is a scalar, num elements in the input tensor is 1
@@ -74,8 +78,56 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
         return {'nInputs': num_elements_in_input_0}
     if layer.op == TFReduceMean.__name__:
         return {'nInputs': num_elements_in_input_0}
+    if layer.op == TFAdd.__name__:
+        if len(inputs)==2:
+            input_1 = inputs[1]
+            input_1_shape = get_effective_shape(input_1.shape)
+            if len(input_1_shape) == 0:
+                num_elements_in_input_1 = 1
+            # Else, the number of elements in the input tensor is the first dimension
+            # E.g. input_0.shape = (1, 2, 1), input_0_shape=(2, 1), num_elements_in_input_0=2
+            else:
+                num_elements_in_input_1 = input_1_shape[0]
+            return {'nElements': max(num_elements_in_input_0, num_elements_in_input_1)}
+        return {'nElements': num_elements_in_input_0}
+    if layer.op == TFSub.__name__:
+        if len(inputs)==2:
+            input_1 = inputs[1]
+            input_1_shape = get_effective_shape(input_1.shape)
+            if len(input_1_shape) == 0:
+                num_elements_in_input_1 = 1
+            # Else, the number of elements in the input tensor is the first dimension
+            # E.g. input_0.shape = (1, 2, 1), input_0_shape=(2, 1), num_elements_in_input_0=2
+            else:
+                num_elements_in_input_1 = input_1_shape[0]
+            return {'nElements': max(num_elements_in_input_0, num_elements_in_input_1)}
+        return {'nElements': num_elements_in_input_0}
+    if layer.op == TFMul.__name__:
+        if len(inputs)==2:
+            input_1 = inputs[1]
+            input_1_shape = get_effective_shape(input_1.shape)
+            if len(input_1_shape) == 0:
+                num_elements_in_input_1 = 1
+            # Else, the number of elements in the input tensor is the first dimension
+            # E.g. input_0.shape = (1, 2, 1), input_0_shape=(2, 1), num_elements_in_input_0=2
+            else:
+                num_elements_in_input_1 = input_1_shape[0]
+            return {'nElements': max(num_elements_in_input_0, num_elements_in_input_1)}
+        return {'nElements': num_elements_in_input_0}
+    if layer.op == TFDiv.__name__:
+        if len(inputs)==2:
+            input_1 = inputs[1]
+            input_1_shape = get_effective_shape(input_1.shape)
+            if len(input_1_shape) == 0:
+                num_elements_in_input_1 = 1
+            # Else, the number of elements in the input tensor is the first dimension
+            # E.g. input_0.shape = (1, 2, 1), input_0_shape=(2, 1), num_elements_in_input_0=2
+            else:
+                num_elements_in_input_1 = input_1_shape[0]
+            return {'nElements': max(num_elements_in_input_0, num_elements_in_input_1)}
+        return {'nElements': num_elements_in_input_0}
     if layer.op == TFLog.__name__:
-        return {'e': 2}
+        return {'e': 2, 'nInputs': num_elements_in_input_0}
     return {}
 
 
@@ -140,41 +192,68 @@ def transpile(filename: str, output_dir: str = 'output', raw: bool = False, dec:
 
         # Add constraints for component inputs
         #   E.g. comp.in[0] <== prev_comp.out[0], ...
-        for input_index, _input in enumerate(layer.inputs):
+
+        for input_index, _input in enumerate(layer.full_inputs):
             # Handle left hand side
             component_input_name = f"{component_template.input_names[input_index]}"
             # How many `[]`s. E.g. (3, 4) -> dim=2
             lhs = f"{layer.name}.{component_input_name}"
             lhs_dim = component_template.input_dims[input_index]
 
-            # Handle right hand side
-            if model.is_model_input(_input.name) is True:
-                # If this input is from `input_layer`, use the original tensor name for it
-                from_component_name = None
-                from_component_signal_name = _input.name
-                rhs_dim = len(model_input_name_to_shape[_input.name])
-            else:
+            # Handle right hand side when it's keras tensor
+            if isinstance(_input, dict) and (_input['class_name']=='__keras_tensor__'):
+                input_name = _input['name']
+                input_shape = tuple(_input['config']['shape'])
+                if model.is_model_input(input_name) is True:
+                    # If this input is from `input_layer`, use the original tensor name for it
+                    from_component_name = None
+                    from_component_signal_name = input_name
+                    rhs_dim = len(model_input_name_to_shape[input_name])
+                else:
                 # Get the output name in the corresponding component
-                from_component_layer = model.get_component_from_output_name(_input.name)
-                if from_component_layer is None:
-                    raise ValueError(f"Output {_input.name} not found in any component")
-                from_component_name = from_component_layer.name
-                # get the index of the output tensor in the component
-                from_component_output_tensor_names = [output.name for output in from_component_layer.outputs]
-                from_component_output_index = from_component_output_tensor_names.index(_input.name)
-                # Sanity check
-                if from_component_output_index == -1:
-                    raise ValueError(f"Output {_input.name} not found in from_component {from_component_name}")
+                    from_component_layer = model.get_component_from_output_name(input_name)
+                    if from_component_layer is None:
+                        raise ValueError(f"Output {input_name} not found in any component")
+                    from_component_name = from_component_layer.name
+                    # get the index of the output tensor in the component
+                    from_component_output_tensor_names = [output.name for output in from_component_layer.outputs]
+                    from_component_output_index = from_component_output_tensor_names.index(input_name)
+                    # Sanity check
+                    if from_component_output_index == -1:
+                        raise ValueError(f"Output {input_name} not found in from_component {from_component_name}")
 
-                # Use the index to get the component output name from template
-                from_component_template = templates[from_component_layer.op]
-                from_component_signal_name = from_component_template.output_names[from_component_output_index]
-                rhs_dim = from_component_template.output_dims[from_component_output_index]
+                    # Use the index to get the component output name from template
+                    from_component_template = templates[from_component_layer.op]
+                    from_component_signal_name = from_component_template.output_names[from_component_output_index]
+                    rhs_dim = from_component_template.output_dims[from_component_output_index]
+                
+                # for handling with result in scalar like result of torch.mean()
+                if input_shape==():
+                    if len(layer.inputs)==2 and len(layer.inputs[1-input_index].shape)>=2:
+                        input_shape = (layer.inputs[1-input_index]).shape[:-1]
+                    else:
+                        input_shape =(1,1)
+
+            else:
+                # this is for actual constant
+                from_component_name = None
+                if input_index ==0:
+                    from_component_signal_name = int(layer.config['first_operand'])
+                elif input_index ==1:
+                    from_component_signal_name = int(layer.config['second_operand'])
+                # rhs_dim = len(model_input_name_to_shape[_input.name])
+                # print('indexx: ', input_index)
+                rhs_dim = 0
+                if len(layer.inputs)>0 and len(layer.inputs[0].shape)>=2:
+                    input_shape = (layer.inputs[0]).shape[:-1]
+                    # print('hellloooo input shape ', input_shape)
+                else:
+                    input_shape =(1,1)
+
             # either "{component_name}." if input is from a component or "" if input is from model input
             from_component_prefix = f"{from_component_name}." if from_component_name is not None else ""
             rhs = f"{from_component_prefix}{from_component_signal_name}"
-
-            constraints_lines = generate_constraints(lhs, lhs_dim, rhs, rhs_dim, _input.shape)
+            constraints_lines = generate_constraints(lhs, lhs_dim, rhs, rhs_dim, input_shape)
             component_constraints.extend(constraints_lines)
 
     # Add constraints for model outputs (main outputs)
@@ -202,8 +281,11 @@ def transpile(filename: str, output_dir: str = 'output', raw: bool = False, dec:
 
         rhs = f"{from_component_name}.{from_component_signal_name}"
         rhs_dim = from_component_template.output_dims[from_component_output_index]
-
+        # when it's scalar
+        if output.shape ==():
+            output.shape = (1,1)
         constraints_lines = generate_constraints(lhs, lhs_dim, rhs, rhs_dim, output.shape)
+        # print('output conssss: ', constraints_lines)
         output_constraints.extend(constraints_lines)
 
 
@@ -246,10 +328,12 @@ def parse_args(template_args: typing.List[str], args: typing.Dict[str, typing.An
     return args_str.format(**args)
 
 
+# def get_effective_shape(shape: tuple[int, ...]) -> tuple:
+#     # remove the first dimension. E.g. (1, 2, 1) -> (2, 1)
+#     return shape[1:]
 def get_effective_shape(shape: tuple[int, ...]) -> tuple:
     # remove the first dimension. E.g. (1, 2, 1) -> (2, 1)
     return shape[1:]
-
 
 def tensor_shape_to_circom_array(shape: list[int]):
     return ''.join([f"[{dim}]" for dim in shape])

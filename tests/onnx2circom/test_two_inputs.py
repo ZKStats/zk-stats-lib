@@ -18,17 +18,38 @@ CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/Users/jernkun/Desktop/circom-2-arithc')
 MP_SPDZ_PROJECT_ROOT = Path('/Users/jernkun/Desktop/MP-SPDZ')
 
 
-def test_onnx_to_circom(tmp_path):
+def test_two_inputs(tmp_path):
     data = torch.tensor(
         [32, 8, 8],
         dtype = torch.float32,
     ).reshape(1, -1, 1)
     class Model(nn.Module):
         def forward(self, x):
-            m = torch.mean(x)  # 16
-            s = torch.sum(x)  # 48
-            l = torch.log(x)  # 5,3,3
-            return m*s+l #773, 771, 771
+            return x-torch.log(x)
+            # All tests below already pass
+            return x+4
+            return 4+x
+            return x-4
+            return 4-x
+            return x+torch.log(x)
+            return torch.log(x)+x
+            return x-torch.log(x)
+            return torch.log(x)-x
+            return torch.mean(x)+4
+            return 4+torch.mean(x)
+            return torch.mean(x)-4
+            return 4-torch.mean(x)
+            return torch.mean(x)+4
+            return torch.mean(x)+torch.sum(x)
+            return torch.mean(x)-torch.sum(x)
+            return torch.mean(x)+x
+            return x+torch.mean(x)
+            return torch.mean(x)-x
+            return x-torch.mean(x)
+            return torch.mean(x)+torch.log(x)
+            return torch.log(x)+torch.mean(x)
+            return torch.mean(x)-torch.log(x)
+            return torch.log(x)-torch.mean(x)
 
 
     compile_and_check(Model, data, tmp_path)
