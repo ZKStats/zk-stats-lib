@@ -19,10 +19,10 @@ class KerasTensor(typing.Protocol):
 class Input:
     is_constant: bool
     shape: typing.Sequence[int]
+    # If it's a constant, name is None. Else, it's the name of the input in keras model.
     name: typing.Optional[str]
+    # If it's a constant, value is the value of the constant. Else, it's None
     value: typing.Optional[float]
-    # The name of the input. E.g. input_layer
-    # if it's a
 
 
 # read each layer in a model and convert it to a class called Layer
@@ -42,14 +42,15 @@ class Layer:
         _inputs = layer.input if isinstance(layer.input, list) else [layer.input]
         # Always convert to list for easier handling. Doing this since if there is only one output, it is not a list in keras layer
         self.outputs = layer.output if isinstance(layer.output, list) else [layer.output]
-        self.config = layer.get_config()
+        _config = layer.get_config()
+        self.config = _config
         self.inputs = []
-        list_inputs =  layer.get_config()['node_inputs']
+        list_inputs = _config['node_inputs']
 
         for index, ele_name in enumerate(list_inputs):
             # non-constant: {'class_name': '__keras_tensor__', 'config': {'shape': [1, 3, 1], 'dtype': 'float32', 'keras_history': ['input_layer', 0, 0]}, 'name': 'input_layer'},
             # constant: 3.0
-            config_ele = layer.get_config()['tensor_grap'][ele_name]
+            config_ele = _config['tensor_grap'][ele_name]
             # it's not a constant, add the name of the input
             is_non_constant = isinstance(config_ele, dict) and config_ele["class_name"]=='__keras_tensor__'
             # if it's constant, get the shape from non-constant input
