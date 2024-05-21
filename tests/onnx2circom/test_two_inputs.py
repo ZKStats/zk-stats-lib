@@ -8,7 +8,7 @@ import torch.nn as nn
 
 from zkstats.onnx2circom import onnx_to_circom
 from zkstats.arithc_to_bristol import parse_arithc_json
-from zkstats.backends.mpspdz import generate_mpspdz_circuit, run_mpspdz_circuit
+from zkstats.backends.mpspdz import generate_mpspdz_circuit, generate_mpspdz_inputs_for_party, run_mpspdz_circuit
 
 from .utils import run_torch_model, torch_model_to_onnx
 
@@ -17,7 +17,8 @@ from .utils import run_torch_model, torch_model_to_onnx
 CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
 MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
 
-SCALE = 0
+
+NUM_PARTIES = 2
 
 def test_two_inputs(tmp_path):
     data = torch.tensor(
@@ -53,10 +54,10 @@ def test_two_inputs(tmp_path):
             return torch.log(x)-torch.mean(x)
 
 
-    compile_and_check(Model, data, tmp_path, SCALE)
+    compile_and_check(Model, data, tmp_path)
 
 
-def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path, scale: int):
+def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path):
     # output_path = tmp_path
     # Don't use tmp_path for now for easier debugging
     # So you should see all generated files in `output_path`
@@ -79,7 +80,7 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     torch_model_to_onnx(model_type, data, onnx_path)
     assert onnx_path.exists() is True, f"The output file {onnx_path} does not exist."
     print("Transforming onnx model to circom...")
-    onnx_to_circom(onnx_path, circom_path, scale)
+    onnx_to_circom(onnx_path, circom_path)
     assert circom_path.exists() is True, f"The output file {circom_path} does not exist."
 
     arithc_path = output_path / f"{model_name}.json"
@@ -105,31 +106,70 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     with open(circuit_info_path, 'r') as f:
         circuit_info = json.load(f)
     input_name_to_wire_index = circuit_info['input_name_to_wire_index']
+    output_name_to_wire_index = circuit_info['output_name_to_wire_index']
     input_names = list(input_name_to_wire_index.keys())
+    output_names = list(output_name_to_wire_index.keys())
     print("!@# input_names=", input_names)
 
     # TODO: This should come from users. Here we just set up a config json
     # for convenience (which input is from which party). Now just put every input to party 0.
     # Assume the input data is a 1-d tensor
-    user_config_path = MP_SPDZ_PROJECT_ROOT / f"Configs/{model_name}.json"
-    user_config_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(user_config_path, 'w') as f:
-        json.dump({"inputs_from": {
-            "0": input_names,
-        }}, f, indent=4)
+    mpc_settings_path = output_path / f"{model_name}.mpc_settings.json"
+    mpc_settings_path.parent.mkdir(parents=True, exist_ok=True)
+    # party 0 is alice, having input a, and output a_add_b, a_mul_c are revealed to
+    # party 1 is bob, having input b, and output a_add_b, a_mul_c are revealed to
+    # [
+    #     {
+    #         "name": "alice",
+    #         "inputs": ["a"],
+    #         "outputs": ["a_add_b", "a_mul_c"]
+    #     },
+    #     {
+    #         "name": "bob",
+    #         "inputs": ["b"],
+    #         "outputs": ["a_add_b", "a_mul_c"]
+    #     }
+    # ]
+    with open(mpc_settings_path, 'w') as f:
+        json.dump([
+            {
+                "name": "alice",
+                "inputs": input_names,  # All inputs are from party 0
+                "outputs": output_names,  # Party 0 can see all outputs
+            },
+            {
+                "name": "bob",
+                "inputs": [],  # No input is from party 1
+                "outputs": output_names,  # Party 1 can see all outputs
+            }
+        ], f, indent=4)
 
-    print("!@# user_config_path=", user_config_path)
+    print("!@# mpc_settings_path=", mpc_settings_path)
 
     # Prepare data for party 0
     data_list = data.reshape(-1)
-    input_0_path = MP_SPDZ_PROJECT_ROOT / 'Player-Data/Input-P0-0'
-    input_0_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(input_0_path, 'w') as f:
-        # TODO: change int to float
-        f.write(' '.join([str(int(x)) for x in data_list.tolist()]))
+    input_paths = [output_path / f"{model_name}_party_{i}.inputs.json" for i in range(NUM_PARTIES)]
+    input_paths[0].parent.mkdir(parents=True, exist_ok=True)
+    with open(input_paths[0], 'w') as f:
+        json.dump({
+            name: int(x) for name, x in zip(input_names, data_list.tolist())
+        }, f, indent=4)
+    # input 1 is empty
+    with open(input_paths[1], 'w') as f:
+        json.dump({}, f)
 
     # Run MP-SPDZ
-    mpc_circuit_path = generate_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, bristol_path, circuit_info_path, user_config_path)
-    print(f"Running mp-spdz circuit {mpc_circuit_path}...")
-    run_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, mpc_circuit_path)
+    mpspdz_circuit_path = generate_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, bristol_path, circuit_info_path, mpc_settings_path)
+    for party in range(NUM_PARTIES):
+        input_json_for_party_path = output_path / f"{model_name}_party_{party}.inputs.json"
+        mpspdz_input_path = generate_mpspdz_inputs_for_party(
+            MP_SPDZ_PROJECT_ROOT,
+            party,
+            input_json_for_party_path,
+            circuit_info_path,
+            mpc_settings_path,
+        )
+        print(f"Party {party} input path: {mpspdz_input_path}")
+    print(f"Running mp-spdz circuit {mpspdz_circuit_path}...")
     # TODO: parse output from MP-SPDZ and compare with torch output
+    run_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, mpspdz_circuit_path)
