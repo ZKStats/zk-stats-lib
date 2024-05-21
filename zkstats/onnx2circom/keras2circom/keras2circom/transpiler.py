@@ -1,7 +1,7 @@
 import os
 import typing
 
-from .circom import templates
+from .circom import Template
 from .model import Layer, Model
 
 
@@ -95,7 +95,7 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
     return {}
 
 
-def transpile(filename: str, output_dir: str = 'output', raw: bool = False, dec: int = 0) -> None:
+def transpile(templates: dict[str, Template], filename: str, output_dir: str = 'output', raw: bool = False, dec: int = 0) -> None:
     '''
     Traverse a keras model and convert it to a circom circuit.
 

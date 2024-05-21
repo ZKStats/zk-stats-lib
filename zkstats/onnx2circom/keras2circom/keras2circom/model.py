@@ -47,7 +47,8 @@ class Layer:
         self.inputs = []
         list_inputs = _config['node_inputs']
 
-        for index, ele_name in enumerate(list_inputs):
+        index = 0
+        for ele_name in list_inputs:
             # non-constant: {'class_name': '__keras_tensor__', 'config': {'shape': [1, 3, 1], 'dtype': 'float32', 'keras_history': ['input_layer', 0, 0]}, 'name': 'input_layer'},
             # constant: 3.0
             config_ele = _config['tensor_grap'][ele_name]
@@ -64,6 +65,7 @@ class Layer:
                         input_shape = (_inputs[1-index]).shape[:-1]
                     else:
                         input_shape =(1,1)
+                index += 1
             # it's constant. assume it's a float
             else:
                 name = None
