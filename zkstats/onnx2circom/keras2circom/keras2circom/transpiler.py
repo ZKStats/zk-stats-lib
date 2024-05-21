@@ -95,7 +95,7 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
     return {}
 
 
-def transpile(filename: str, output_dir: str = 'output', raw: bool = False, dec: int = 18) -> None:
+def transpile(filename: str, output_dir: str = 'output', raw: bool = False, dec: int = 0) -> None:
     '''
     Traverse a keras model and convert it to a circom circuit.
 
@@ -167,9 +167,11 @@ def transpile(filename: str, output_dir: str = 'output', raw: bool = False, dec:
             input_name = _input.name
             input_shape = _input.shape
             if _input.is_constant:
-                # If this input is a constant, use the value of the constant
+                # If this input is a constant, use the value of the constant directly as the right hand side
                 from_component_name = None
-                from_component_signal_name = str(_input.value)
+                # Scale the float value by 10^dec
+                scaled = int(_input.value * 10 ** dec)
+                from_component_signal_name = str(scaled)
                 rhs_dim = 0
             elif model.is_model_input(input_name) is True:
                 # If this input is from `input_layer`, use the original tensor name for it
