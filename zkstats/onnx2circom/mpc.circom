@@ -65,10 +65,7 @@ template TFReduceMean(nInputs) {
         sum.in[i] <== in[i];
     }
 
-    component div = TFDiv();
-    div.left <== sum.out;
-    div.right <== nInputs;
-    out <== div.out;
+    out <== sum.out / nInputs;
 }
 
 
@@ -95,7 +92,7 @@ template TFLog(e, nInputs) {
     signal x[nInputs];
     signal e_until[nInputs][max_exponent];
     signal sel[nInputs][max_exponent];
-    component sel_comp[nInputs][max_exponent];
+    // component sel_comp[nInputs][max_exponent];
     component k_by_sum[nInputs];
     signal k[nInputs];
     component b_by_sum[nInputs];
@@ -122,10 +119,7 @@ template TFLog(e, nInputs) {
         sel[input_index][0] <== x[input_index] <= 1;
 
         for (var i = 1; i < max_exponent; i++) {
-            sel_comp[input_index][i] = TFMul();
-            sel_comp[input_index][i].left <== x[input_index] > e_until[input_index][i-1];
-            sel_comp[input_index][i].right <== x[input_index] <= e_until[input_index][i];
-            sel[input_index][i] <== sel_comp[input_index][i].out;
+            sel[input_index][i] <== x[input_index] > e_until[input_index][i-1] * x[input_index] <= e_until[input_index][i];
         }
         k_by_sum[input_index] = TFReduceSum(max_exponent);
         for (var i = 0; i < max_exponent; i++) {
