@@ -17,6 +17,7 @@ from .utils import run_torch_model, torch_model_to_onnx
 CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
 MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
 
+SCALE = 0
 
 def test_two_inputs(tmp_path):
     data = torch.tensor(
@@ -52,9 +53,10 @@ def test_two_inputs(tmp_path):
             return torch.log(x)-torch.mean(x)
 
 
-    compile_and_check(Model, data, tmp_path)
+    compile_and_check(Model, data, tmp_path, SCALE)
 
-def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path):
+
+def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path, scale: int):
     # output_path = tmp_path
     # Don't use tmp_path for now for easier debugging
     # So you should see all generated files in `output_path`
@@ -77,7 +79,7 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     torch_model_to_onnx(model_type, data, onnx_path)
     assert onnx_path.exists() is True, f"The output file {onnx_path} does not exist."
     print("Transforming onnx model to circom...")
-    onnx_to_circom(onnx_path, circom_path)
+    onnx_to_circom(onnx_path, circom_path, scale)
     assert circom_path.exists() is True, f"The output file {circom_path} does not exist."
 
     arithc_path = output_path / f"{model_name}.json"

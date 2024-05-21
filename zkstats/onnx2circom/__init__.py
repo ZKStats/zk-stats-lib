@@ -26,7 +26,7 @@ def onnx_to_keras(onnx_path: Path, generated_keras_path: Path):
     )
 
 
-def keras_to_circom(keras_path: Path, generated_circom_path: Path):
+def keras_to_circom(keras_path: Path, generated_circom_path: Path, scale: int):
     # Ref: https://github.com/JernKunpittaya/keras2circom/blob/42dc97e4ce0543dde68b37e9b220a29bf88be84d/main.py#L21
     # circom.dir_parse(
     #     MPC_CIRCOM_PATH,
@@ -40,7 +40,7 @@ def keras_to_circom(keras_path: Path, generated_circom_path: Path):
     transpiler.transpile(
         str(keras_path),
         str(keras2circom_output_dir),
-        dec=0,
+        dec=scale,
     )
     generated_circom_original = keras2circom_output_dir / f"circuit.circom"
     # Copy the generated circom file to the target path
@@ -48,11 +48,11 @@ def keras_to_circom(keras_path: Path, generated_circom_path: Path):
     generated_circom_path.write_text(generated_circom_original.read_text())
 
 
-def onnx_to_circom(onnx_path_str: Union[str, Path], generated_circom_path_str: Union[str, Path]):
+def onnx_to_circom(onnx_path_str: Union[str, Path], generated_circom_path_str: Union[str, Path], scale: int):
     onnx_path = Path(onnx_path_str)
     generated_circom_path = Path(generated_circom_path_str)
     keras_path = onnx_path.parent / f"{onnx_path.stem}.keras"
     print("Transforming onnx model to keras...")
     onnx_to_keras(onnx_path, keras_path)
     print("Transforming keras model to circom...")
-    keras_to_circom(keras_path, generated_circom_path)
+    keras_to_circom(keras_path, generated_circom_path, scale)

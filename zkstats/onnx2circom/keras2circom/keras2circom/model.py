@@ -64,9 +64,10 @@ class Layer:
                         input_shape = (_inputs[1-index]).shape[:-1]
                     else:
                         input_shape =(1,1)
+            # it's constant. assume it's a float
             else:
                 name = None
-                value = int(config_ele)
+                value = float(config_ele)
                 if len(_inputs)>0 and len(_inputs[0].shape)>=2:
                     input_shape = (_inputs[0]).shape[:-1]
                 else:
