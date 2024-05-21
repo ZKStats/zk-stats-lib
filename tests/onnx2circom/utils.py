@@ -12,8 +12,8 @@ from zkstats.arithc_to_bristol import parse_arithc_json
 from zkstats.backends.mpspdz import generate_mpspdz_circuit, generate_mpspdz_inputs_for_party, run_mpspdz_circuit
 
 
-CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/circom-2-arithc')
-MP_SPDZ_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/MP-SPDZ')
+CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
+MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
 
 
 def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path):
