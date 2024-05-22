@@ -8,10 +8,6 @@ from dataclasses import dataclass
 
 import re
 
-templates: typing.Dict[str, 'Template'] = {
-
-}
-
 
 @dataclass
 class Template:
@@ -50,6 +46,7 @@ def file_parse(fpath):
     # !@# file_parse: sig=('output', 'out', '[1]')
     # !@# file_parse: infos=[['in'], [2], ['out'], [1]]
     # !@# file_parse: args=['nInputs']
+    templates: typing.Dict[str, Template] = {}
     funcs = re.findall('template (\w+) ?\((.*?)\) ?\{(.*?)\}', lines)
     for func in funcs:
         op_name = func[0].strip()
@@ -94,6 +91,7 @@ def file_parse(fpath):
             output_names=infos[2],
             output_dims=infos[3],
         )
+    return templates
 
 
 def dir_parse(dir_path, skips=[]):

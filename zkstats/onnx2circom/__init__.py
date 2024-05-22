@@ -33,14 +33,14 @@ def keras_to_circom(keras_path: Path, generated_circom_path: Path):
     #     # TODO: should we skip them?
     #     skips=['util.circom', 'circomlib-matrix', 'circomlib', 'crypto'],
     # )
-    circom.file_parse(MPC_CIRCOM_PATH)
+    templates = circom.file_parse(MPC_CIRCOM_PATH)
     # transpiler.transpile(args['<model.h5>'], args['--output'], args['--raw'], args['--decimals'])
     # keras2circom_output_dir = Path(tempfile.mkdtemp())
     keras2circom_output_dir = generated_circom_path.parent
     transpiler.transpile(
+        templates,
         str(keras_path),
         str(keras2circom_output_dir),
-        dec=18,  # TODO: decimal. Now it's the default value. We can pick up a suitable value
     )
     generated_circom_original = keras2circom_output_dir / f"circuit.circom"
     # Copy the generated circom file to the target path
