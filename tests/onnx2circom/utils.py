@@ -131,8 +131,14 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
         )
         print(f"Party {party} input path: {mpspdz_input_path}")
     print(f"Running mp-spdz circuit {mpspdz_circuit_path}...")
-    # TODO: parse output from MP-SPDZ and compare with torch output
-    run_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, mpspdz_circuit_path)
+    # E.g. mpspdz_output = {'keras_tensor_3': tensor()}
+    output_name_to_tensor = run_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, mpspdz_circuit_path)
+    # we should only have one output tensor
+    assert len(output_name_to_tensor) == 1
+    # TODO: we should access the output tensor by name. It can be retrieved from keras model.
+    output_tensor_mpsdpz = next(iter(output_name_to_tensor.values()))
+    # Compare the output tensor with the expected output. Should be close
+    assert torch.allclose(output_tensor_mpsdpz, output_torch, atol=1e-3), f"Output tensor is not close to the expected output tensor. {output_tensor=}, {output_torch=}"
 
 
 def run_torch_model(model_type: Type[nn.Module], data: torch.Tensor) -> torch.Tensor:

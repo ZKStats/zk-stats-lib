@@ -1,8 +1,12 @@
 from dataclasses import dataclass
 from enum import Enum
 import json
-import os
 from pathlib import Path
+import subprocess
+import re
+import torch
+from collections import defaultdict
+from typing import Any
 
 
 class AGateType(Enum):
@@ -46,9 +50,32 @@ def run_mpspdz_circuit(mpspdz_project_root: Path, mpspdz_circuit_path: Path, mpc
         f"The MP-SPDZ circuit file {mpspdz_circuit_path} should be under {mpspdz_circuit_dir}."
     # circuit_name = 'tutorial'
     circuit_name = mpspdz_circuit_path.stem
-    code = os.system(f'cd {mpspdz_project_root} && Scripts/compile-run.py -E {mpc_protocol} {circuit_name} -M')
-    if code != 0:
-        raise ValueError(f"Failed to run MP-SPDZ interpreter. Error code: {code}")
+    # Compile and run MP-SPDZ in the local machine
+    # We'd need to capture the output of the command to return the results
+    # E.g.
+    # "outputs[0]: keras_tensor_3=16"
+    # "outputs[1]: keras_tensor_4=48"
+    # ...
+    command = f'cd {mpspdz_project_root} && Scripts/compile-run.py -E {mpc_protocol} {circuit_name} -M'
+
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    stdout, stderr = process.communicate()
+
+    if process.returncode != 0:
+        raise ValueError(f"Failed to run MP-SPDZ interpreter. Error code: {process.returncode}\n{stderr}")
+
+    # Use regular expressions to parse the output
+    # E.g. "outputs[0]: keras_tensor_3=16" or "outputs[0]: keras_tensor_3[0]=16"
+    output_pattern = re.compile(r"outputs\[\d+\]: (\w+(?:\[\d+\])*)=(\d+)")
+    outputs = {}
+
+    for line in stdout.splitlines():
+        match = output_pattern.search(line)
+        if match:
+            output_name, value = match.groups()
+            outputs[output_name] = float(value)
+    output_name_to_tensor = mpspdz_output_to_tensors(outputs)
+    return output_name_to_tensor
 
 
 def generate_mpspdz_circuit(
@@ -268,3 +295,93 @@ def generate_mpspdz_inputs_for_party(
     with open(input_file_for_party_mpspdz, 'w') as f:
         f.write(" ".join(map(str, wire_value_in_order_for_mpsdz)))
     return input_file_for_party_mpspdz
+
+
+def mpspdz_output_to_tensors(output_dict: dict[str, Any]) -> dict[str, Any]:
+    """
+    Converts a dictionary of tensor values with nested indices into n-dimensional PyTorch tensors.
+
+    The function parses keys in the format 'name[idx1][idx2]...[idxN]' to construct n-dimensional tensors.
+    If any index is missing for a tensor, it raises a ValueError with detailed information about the missing index.
+
+    Args:
+        output_dict (Dict[str, Any]): Dictionary containing tensor values with nested indices.
+
+    Returns:
+        Dict[str, Any]: Dictionary with tensor names as keys and corresponding n-dimensional PyTorch tensors as values.
+
+    Raises:
+        ValueError: If any index is missing for a tensor.
+    """
+    pattern = re.compile(r"(\w+)((?:\[\d+\])*)")
+
+    def parse_key(key: str) -> tuple[str, tuple[int, ...]]:
+        match = pattern.match(key)
+        if not match:
+            raise ValueError(f"Invalid key format: {key}")
+        name, indices = match.groups()
+        indices = tuple(int(idx) for idx in re.findall(r"\d+", indices))
+        return name, indices
+
+    tensor_data = defaultdict(lambda: defaultdict(dict))
+    scalar_data = {}
+
+    for key, value in output_dict.items():
+        name, indices = parse_key(key)
+        if not indices:
+            scalar_data[name] = value
+        else:
+            d = tensor_data[name]
+            for idx in indices[:-1]:
+                if idx not in d:
+                    d[idx] = defaultdict(dict)
+                d = d[idx]
+            d[indices[-1]] = value
+
+    def check_completeness_and_shape(tensor_dict):
+        shape = []
+        d = tensor_dict
+        while isinstance(d, dict):
+            max_idx = max(d.keys())
+            shape.append(max_idx + 1)
+            d = next(iter(d.values())) if d else None
+        for idxs in generate_indices(shape):
+            d = tensor_dict
+            for idx in idxs[:-1]:
+                if idx not in d:
+                    raise ValueError(f"Missing data for index {tuple(idxs[:-1])} in dimension {idx}")
+                d = d[idx]
+            if idxs[-1] not in d:
+                raise ValueError(f"Missing data for index {tuple(idxs)} in dimension {idxs[-1]}")
+        return shape
+
+    def generate_indices(shape):
+        if not shape:
+            return []
+        indices = [[]]
+        for dim in shape:
+            new_indices = []
+            for idx in range(dim):
+                for ind in indices:
+                    new_indices.append(ind + [idx])
+            indices = new_indices
+        return indices
+
+    def build_tensor(data_dict, shape):
+        tensor = torch.zeros(shape)
+        for idxs in generate_indices(shape):
+            d = data_dict
+            for idx in idxs[:-1]:
+                d = d[idx]
+            tensor[tuple(idxs)] = d[idxs[-1]]
+        return tensor
+
+    result = {}
+    for name, data in tensor_data.items():
+        shape = check_completeness_and_shape(data)
+        tensor = build_tensor(data, shape)
+        result[name] = tensor
+
+    result.update(scalar_data)
+
+    return result
