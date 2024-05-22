@@ -23,6 +23,8 @@ class Input:
     name: typing.Optional[str]
     # If it's a constant, value is the value of the constant. Else, it's None
     value: typing.Optional[float]
+    # is it keras_tensor in form of no shape i.e. shape = () 
+    # is_keras_constant: bool
 
 
 # read each layer in a model and convert it to a class called Layer
@@ -46,25 +48,28 @@ class Layer:
         self.config = _config
         self.inputs = []
         list_inputs = _config['node_inputs']
+        # is_keras_constant = False
 
         index = 0
         for ele_name in list_inputs:
             # non-constant: {'class_name': '__keras_tensor__', 'config': {'shape': [1, 3, 1], 'dtype': 'float32', 'keras_history': ['input_layer', 0, 0]}, 'name': 'input_layer'},
+            # non-constant: {'class_name': '__keras_tensor__', 'config': {'shape': [], 'dtype': 'float32', 'keras_history': ['tf_reducemean', 0, 0]}},
             # constant: 3.0
             config_ele = _config['tensor_grap'][ele_name]
             # it's not a constant, add the name of the input
             is_non_constant = isinstance(config_ele, dict) and config_ele["class_name"]=='__keras_tensor__'
-            # if it's constant, get the shape from non-constant input
             if is_non_constant:
                 name = _inputs[index].name
                 value = None
                 input_shape = tuple(config_ele['config']['shape'])
+                # if it's keras tensor resulting in constant, get the shape from non-constant input
                 if input_shape == ():
                     # if there are more than 1 inputs like `TFAdd`, we need to get the shape of the other input
                     if len(_inputs)==2 and len(_inputs[1-index].shape)>=2:
                         input_shape = (_inputs[1-index]).shape[:-1]
                     else:
                         input_shape =(1,1)
+                    # is_keras_constant = True
                 index += 1
             # it's constant. assume it's a float
             else:
@@ -80,6 +85,7 @@ class Layer:
                     shape=input_shape,
                     name=name,
                     value=value,
+                    # is_keras_constant=is_keras_constant
                 )
             )
 

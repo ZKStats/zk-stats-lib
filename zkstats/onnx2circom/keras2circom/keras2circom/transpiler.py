@@ -80,7 +80,7 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
         return {'e': 2, 'nInputs': num_elements_in_input_0}
     if is_in_ops(layer.op, [TFReduceSum, TFReduceMean]):
         return {'nInputs': num_elements_in_input_0}
-    if is_in_ops(layer.op, [TFAdd, TFSub, TFMul, TFDiv]):
+    if is_in_ops(layer.op, [TFAdd, TFSub, TFMul, TFDiv, TFEqual]):
         if len(inputs)==2:
             input_1 = inputs[1]
             input_1_shape = get_effective_shape(input_1.shape)
@@ -144,6 +144,7 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
     output_constraints: list[str] = []
 
     for layer in model.layers:
+        print('layer print: ', layer)
         component_template = templates[layer.op]
         # Include statements
         includes.append(f'include "{str(component_template.fpath)}";')
@@ -208,7 +209,7 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
         # Handle left hand side
         lhs = f"{output.name}"
         lhs_dim = len(model_output_name_to_shape[output.name])
-
+        is_keras_constant = False
         # Handle right hand side
         if model.is_model_input(output.name) is True:
             # NOTE: is it possible for a model output to be a model input?
@@ -230,6 +231,7 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
         # when it's scalar
         if output.shape ==():
             output.shape = (1,1)
+            is_keras_constant = True
         constraints_lines = generate_constraints(lhs, lhs_dim, rhs, rhs_dim, output.shape)
         # print('output conssss: ', constraints_lines)
         output_constraints.extend(constraints_lines)
@@ -285,7 +287,7 @@ def tensor_shape_to_circom_array(shape: list[int]):
     return ''.join([f"[{dim}]" for dim in shape])
 
 
-def generate_constraints(lhs: str, lhs_dim: int, rhs: str, rhs_dim: int, tensor_shape: tuple[int, ...]) -> list[str]:
+def generate_constraints(lhs: str, lhs_dim: int, rhs: str, rhs_dim: int, tensor_shape: tuple[int, ...], is_keras_constant:bool= False) -> list[str]:
     """
     Generate constraints for a component input and output
 
@@ -316,7 +318,10 @@ def generate_constraints(lhs: str, lhs_dim: int, rhs: str, rhs_dim: int, tensor_
     # Assume rhs shape is (2,1). E.g. "input_layer[2][1]"
     # add.in[i0] <== input_layer[i0][i1];
     lhs_indices = "".join([f"[i{i}]" for i in range(lhs_dim)])
-    rhs_indices = "".join([f"[i{i}]" for i in range(rhs_dim)])
+    if is_keras_constant:
+        rhs_indices = "".join([f"[0]" for i in range(rhs_dim)])
+    else:
+        rhs_indices = "".join([f"[i{i}]" for i in range(rhs_dim)])
     assignment = f"{INDENTATION * (len(effective_shape))}{lhs}{lhs_indices} <== {rhs}{rhs_indices};"
     for_loop_closing_brackets = [f"{INDENTATION * i}}}" for i in range(len(effective_shape)-1, -1, -1)]
     return for_loop_statements + [assignment] + for_loop_closing_brackets

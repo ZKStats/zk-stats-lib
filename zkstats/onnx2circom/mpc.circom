@@ -37,6 +37,14 @@ template TFDiv(nElements) {
     }
 }
 
+template TFEqual(nElements) {
+    signal input left[nElements];
+    signal input right[nElements];
+    signal output out[nElements];
+    for (var i = 0; i<nElements; i++){
+        out[i] <== left[i] == right[i];
+    }
+}
 
 template TFReduceSum(nInputs) {
     signal input in[nInputs];

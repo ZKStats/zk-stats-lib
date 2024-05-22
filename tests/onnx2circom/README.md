@@ -53,7 +53,7 @@ ls semi-party.x
 
 ### Run the test
 
-Modify the configs in `tests/onnx2circom/test_onnx_to_circom.py` to point to the correct paths. Just fill in the paths to the two projects you just cloned.
+Modify the configs in `tests/onnx2circom/utils.py` to point to the correct paths. Just fill in the paths to the two projects you just cloned.
 
 ```bash
 # NOTE: Change the path to your own path
