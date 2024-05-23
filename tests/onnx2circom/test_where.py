@@ -14,7 +14,7 @@ def test_where(tmp_path):
     ).reshape(1, -1, 1)
     class Model(nn.Module):
         def forward(self,x,y):
-            # Everything works till there's swap when doing this kind of stuff: x and y somehow swap!
+            # Just this example that the result are as if the x and y are swapped
             return torch.where(x>8, x, y-1)
             # But these below works!
             return torch.where(x>8, x, y)
