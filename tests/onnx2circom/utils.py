@@ -12,11 +12,12 @@ from zkstats.arithc_to_bristol import parse_arithc_json
 from zkstats.backends.mpspdz import generate_mpspdz_circuit, generate_mpspdz_inputs_for_party, run_mpspdz_circuit
 
 
-CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
-MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
+CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/circom-2-arithc')
+MP_SPDZ_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/MP-SPDZ')
 
 
-def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path):
+
+def compile_and_run_mpspdz(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path):
     # output_path = tmp_path
     # Don't use tmp_path for now for easier debugging
     # So you should see all generated files in `output_path`
@@ -30,10 +31,6 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     print(f"!@# {keras_path=}")
     circom_path = output_path / f"{model_name}.circom"
     print(f"!@# {circom_path=}")
-
-    print("Running torch model...")
-    output_torch = run_torch_model(model_type, data)
-    print("!@# output_torch=", output_torch)
 
     print("Transforming torch model to onnx...")
     torch_model_to_onnx(model_type, data, onnx_path)
@@ -131,14 +128,22 @@ def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
         )
         print(f"Party {party} input path: {mpspdz_input_path}")
     print(f"Running mp-spdz circuit {mpspdz_circuit_path}...")
-    # E.g. mpspdz_output = {'keras_tensor_3': tensor()}
+    # E.g. mpspdz_output = {'keras_tensor_3': tensor(), '
     output_name_to_tensor = run_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, mpspdz_circuit_path)
     # we should only have one output tensor
     assert len(output_name_to_tensor) == 1
     # TODO: we should access the output tensor by name. It can be retrieved from keras model.
     output_tensor_mpsdpz = next(iter(output_name_to_tensor.values()))
+    return output_tensor_mpsdpz
+
+
+def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path):
+    print("Running torch model...")
+    output_torch = run_torch_model(model_type, data)
+    print("!@# output_torch=", output_torch)
+    output_tensor_mpsdpz = compile_and_run_mpspdz(model_type, data, tmp_path)
     # Compare the output tensor with the expected output. Should be close
-    assert torch.allclose(output_tensor_mpsdpz, output_torch, atol=1e-3), f"Output tensor is not close to the expected output tensor. {output_tensor=}, {output_torch=}"
+    assert torch.allclose(output_tensor_mpsdpz, output_torch, atol=1e-3), f"Output tensor is not close to the expected output tensor. {output_tensor_mpsdpz=}, {output_torch=}"
 
 
 def run_torch_model(model_type: Type[nn.Module], data: torch.Tensor) -> torch.Tensor:
@@ -153,7 +158,7 @@ def run_torch_model(model_type: Type[nn.Module], data: torch.Tensor) -> torch.Te
     elif len(shape) == 1 and shape[0] == 1:
         return output_torch[0]
     else:
-        return output_torch
+        return output_torch.reshape(-1)
 
 
 def torch_model_to_onnx(model_type: Type[nn.Module], data: torch.Tensor, output_onnx_path: Path):

@@ -51,30 +51,34 @@ def run_mpspdz_circuit(mpspdz_project_root: Path, mpspdz_circuit_path: Path, mpc
     # circuit_name = 'tutorial'
     circuit_name = mpspdz_circuit_path.stem
     # Compile and run MP-SPDZ in the local machine
-    # We'd need to capture the output of the command to return the results
-    # E.g.
-    # "outputs[0]: keras_tensor_3=16"
-    # "outputs[1]: keras_tensor_4=48"
-    # ...
     command = f'cd {mpspdz_project_root} && Scripts/compile-run.py -E {mpc_protocol} {circuit_name} -M'
 
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    stdout, stderr = process.communicate()
+    result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-    if process.returncode != 0:
-        raise ValueError(f"Failed to run MP-SPDZ interpreter. Error code: {process.returncode}\n{stderr}")
+    if result.returncode != 0:
+        raise ValueError(f"Failed to run MP-SPDZ interpreter. Error code: {result.returncode}\n{result.stderr}")
 
     # Use regular expressions to parse the output
-    # E.g. "outputs[0]: keras_tensor_3=16" or "outputs[0]: keras_tensor_3[0]=16"
-    output_pattern = re.compile(r"outputs\[\d+\]: (\w+(?:\[\d+\])*)=(\d+)")
+
+    # Use regular expressions to parse the output
+    # E.g.
+    # "outputs[0]: keras_tensor_3=16"
+    # "outputs[1]: keras_tensor_4[0][0]=8.47524e+32"
+    # ...
+    output_pattern = re.compile(r"outputs\[\d+\]: (\w+(?:\[\d+\])*)=(.+)$")
     outputs = {}
 
-    for line in stdout.splitlines():
+    for line in result.stdout.splitlines():
+        print(f"!@# run_mpspdz_circuit: line={line}")
         match = output_pattern.search(line)
         if match:
             output_name, value = match.groups()
             outputs[output_name] = float(value)
+
+    print(f"!@# run_mpspdz_circuit: outputs={outputs}")
+    # Convert the output to tensors
     output_name_to_tensor = mpspdz_output_to_tensors(outputs)
+    print(f"!@# run_mpspdz_circuit: output_name_to_tensor={output_name_to_tensor}")
     return output_name_to_tensor
 
 
@@ -298,21 +302,6 @@ def generate_mpspdz_inputs_for_party(
 
 
 def mpspdz_output_to_tensors(output_dict: dict[str, Any]) -> dict[str, Any]:
-    """
-    Converts a dictionary of tensor values with nested indices into n-dimensional PyTorch tensors.
-
-    The function parses keys in the format 'name[idx1][idx2]...[idxN]' to construct n-dimensional tensors.
-    If any index is missing for a tensor, it raises a ValueError with detailed information about the missing index.
-
-    Args:
-        output_dict (Dict[str, Any]): Dictionary containing tensor values with nested indices.
-
-    Returns:
-        Dict[str, Any]: Dictionary with tensor names as keys and corresponding n-dimensional PyTorch tensors as values.
-
-    Raises:
-        ValueError: If any index is missing for a tensor.
-    """
     pattern = re.compile(r"(\w+)((?:\[\d+\])*)")
 
     def parse_key(key: str) -> tuple[str, tuple[int, ...]]:
@@ -380,8 +369,10 @@ def mpspdz_output_to_tensors(output_dict: dict[str, Any]) -> dict[str, Any]:
     for name, data in tensor_data.items():
         shape = check_completeness_and_shape(data)
         tensor = build_tensor(data, shape)
-        result[name] = tensor
+        result[name] = tensor.reshape(-1)
 
-    result.update(scalar_data)
+    # Convert scalar values to tensor scalars
+    for name, value in scalar_data.items():
+        result[name] = torch.tensor(value)
 
     return result
