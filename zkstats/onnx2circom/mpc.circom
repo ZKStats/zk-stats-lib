@@ -119,7 +119,7 @@ template TFLog(e, nInputs) {
         sel[input_index][0] <== x[input_index] <= 1;
 
         for (var i = 1; i < max_exponent; i++) {
-            sel[input_index][i] <== x[input_index] > e_until[input_index][i-1] * x[input_index] <= e_until[input_index][i];
+            sel[input_index][i] <== (x[input_index] > e_until[input_index][i-1]) * (x[input_index] <= e_until[input_index][i]);
         }
         k_by_sum[input_index] = TFReduceSum(max_exponent);
         for (var i = 0; i < max_exponent; i++) {
