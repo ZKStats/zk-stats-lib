@@ -46,6 +46,70 @@ template TFEqual(nElements) {
     }
 }
 
+template TFGreater(nElements) {
+    signal input left[nElements];
+    signal input right[nElements];
+    signal output out[nElements];
+    for (var i = 0; i<nElements; i++){
+        out[i] <== left[i] > right[i];
+    }
+}
+
+template TFLess(nElements) {
+    signal input left[nElements];
+    signal input right[nElements];
+    signal output out[nElements];
+    for (var i = 0; i<nElements; i++){
+        out[i] <== left[i] < right[i];
+    }
+}
+
+template TFNot(nElements) {
+    signal input in[nElements];
+    signal output out[nElements];
+    for (var i = 0; i<nElements; i++){
+        out[i] <== 1-in[i];
+    }
+}
+
+template TFAnd(nElements) {
+    signal input left[nElements];
+    signal input right[nElements];
+    signal output out[nElements];
+    for (var i = 0; i<nElements; i++){
+        out[i] <== left[i]*right[i];
+    }
+}
+
+template TFOr(nElements) {
+    signal input left[nElements];
+    signal input right[nElements];
+    signal output out[nElements];
+    for (var i = 0; i<nElements; i++){
+        out[i] <== left[i] + right[i] - left[i]*right[i];
+    }
+}
+
+template TFCast(nElements){
+    signal input in[nElements];
+    signal output out[nElements];
+    for (var i = 0; i<nElements; i++){
+        out[i] <== in[i];
+    }
+}
+
+template TFWhere(nElements) {
+    // condition
+    signal input condition[nElements];
+    signal input res_if_true[nElements];
+    signal input res_if_false[nElements];
+    signal output out[nElements];
+
+    for (var i = 0; i < nElements; i++) {
+        out[i] <== (condition[i] * res_if_true[i]) + ((1 - condition[i]) * res_if_false[i]);
+    }
+}
+
 template TFReduceSum(nInputs) {
     signal input in[nInputs];
     signal output out;

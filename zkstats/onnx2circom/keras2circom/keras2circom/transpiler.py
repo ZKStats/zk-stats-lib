@@ -20,7 +20,14 @@ from zkstats.onnx2circom.onnx2keras.layers import (
     TFReduceMean,
     TFReduceMax,
     TFReduceMin,
-    TFEqual
+    TFEqual,
+    TFGreater,
+    TFLess, 
+    TFNot,
+    TFCast,
+    TFAnd, 
+    TFOr, 
+    TFWhere
     # TFArgMax,
     # TFArgMin,
 )
@@ -46,7 +53,14 @@ SUPPORTED_OPS = [
     TFReciprocal,  # 1/n
     TFSqrt,  # sqrt(n)
     TFExp,  # e^n
-    TFEqual
+    TFEqual,
+    TFGreater,
+    TFLess, 
+    TFNot,
+    TFAnd,
+    TFOr,
+    TFCast, 
+    TFWhere
     # TFErf,
 ]
 
@@ -80,18 +94,17 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
         return {'e': 2, 'nInputs': num_elements_in_input_0}
     if is_in_ops(layer.op, [TFReduceSum, TFReduceMean]):
         return {'nInputs': num_elements_in_input_0}
-    if is_in_ops(layer.op, [TFAdd, TFSub, TFMul, TFDiv, TFEqual]):
-        if len(inputs)==2:
-            input_1 = inputs[1]
-            input_1_shape = get_effective_shape(input_1.shape)
-            if len(input_1_shape) == 0:
-                num_elements_in_input_1 = 1
-            # Else, the number of elements in the input tensor is the first dimension
-            # E.g. input_0.shape = (1, 2, 1), input_0_shape=(2, 1), num_elements_in_input_0=2
-            else:
-                num_elements_in_input_1 = input_1_shape[0]
-            return {'nElements': max(num_elements_in_input_0, num_elements_in_input_1)}
+    if is_in_ops(layer.op, [TFNot, TFCast, TFWhere]):
         return {'nElements': num_elements_in_input_0}
+    # 2 inputs operations
+    if is_in_ops(layer.op, [TFAdd, TFSub, TFMul, TFDiv, TFEqual, TFGreater, TFLess, TFAnd, TFOr]):
+        input_1 = inputs[1]
+        input_1_shape = get_effective_shape(input_1.shape)
+        if len(input_1_shape) == 0:
+            num_elements_in_input_1 = 1
+        else:
+            num_elements_in_input_1 = input_1_shape[0]
+        return {'nElements': max(num_elements_in_input_0, num_elements_in_input_1)}
     return {}
 
 
@@ -200,7 +213,7 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
             # either "{component_name}." if input is from a component or "" if input is from model input
             from_component_prefix = f"{from_component_name}." if from_component_name is not None else ""
             rhs = f"{from_component_prefix}{from_component_signal_name}"
-            constraints_lines = generate_constraints(lhs, lhs_dim, rhs, rhs_dim, input_shape)
+            constraints_lines = generate_constraints(lhs, lhs_dim, rhs, rhs_dim, input_shape, _input.is_keras_constant)
             component_constraints.extend(constraints_lines)
 
     # Add constraints for model outputs (main outputs)
@@ -232,7 +245,7 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
         if output.shape ==():
             output.shape = (1,1)
             is_keras_constant = True
-        constraints_lines = generate_constraints(lhs, lhs_dim, rhs, rhs_dim, output.shape)
+        constraints_lines = generate_constraints(lhs, lhs_dim, rhs, rhs_dim, output.shape, is_keras_constant)
         # print('output conssss: ', constraints_lines)
         output_constraints.extend(constraints_lines)
 

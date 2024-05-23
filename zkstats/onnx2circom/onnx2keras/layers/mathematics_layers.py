@@ -267,28 +267,69 @@ class TFWhere(keras.layers.Layer):
     
 @OPERATOR.register_operator("Not")
 class TFNot(keras.layers.Layer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
         super().__init__()
+        self.tensor_grap = tensor_grap
+        self.node_weights = node_weights
+        self.node_inputs = node_inputs
+        self.node_attribute = node_attribute
 
 
     def call(self,input, *args, **kwargs):
         return keras.ops.logical_not(input)
 
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "tensor_grap":self.tensor_grap,
+            'node_weights':self.node_weights,
+            'node_inputs':self.node_inputs,
+            'node_attribute':self.node_attribute,
+        })
+        return config
+    
 @OPERATOR.register_operator("And")
 class TFAnd(keras.layers.Layer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
         super().__init__()
-
+        self.tensor_grap = tensor_grap
+        self.node_weights = node_weights
+        self.node_inputs = node_inputs
+        self.node_attribute = node_attribute
     def call(self,  *args, **kwargs):
         return keras.ops.logical_and(args[0], args[1])
+    
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "tensor_grap":self.tensor_grap,
+            'node_weights':self.node_weights,
+            'node_inputs':self.node_inputs,
+            'node_attribute':self.node_attribute,
+        })
+        return config
 
 @OPERATOR.register_operator("Or")
 class TFOr(keras.layers.Layer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
         super().__init__()
+        self.tensor_grap = tensor_grap
+        self.node_weights = node_weights
+        self.node_inputs = node_inputs
+        self.node_attribute = node_attribute
 
     def call(self,  *args, **kwargs):
         return keras.ops.logical_or(args[0], args[1])
+    
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "tensor_grap":self.tensor_grap,
+            'node_weights':self.node_weights,
+            'node_inputs':self.node_inputs,
+            'node_attribute':self.node_attribute,
+        })
+        return config
 
 
 @OPERATOR.register_operator("Abs")

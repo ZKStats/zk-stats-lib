@@ -1,17 +1,16 @@
 import torch
 import torch.nn as nn
 
-from .utils import compile_and_check, compile_and_check_mult
+from .utils import compile_and_check
 
 
 def test_onnx_to_circom(tmp_path):
     data = torch.tensor(
-        [32],
+        [32, 8, 8],
         dtype = torch.float32,
     ).reshape(1, -1, 1)
     class Model(nn.Module):
         def forward(self, x):
-            return torch.log(x)
             m = torch.mean(x)  # 16
             s = torch.sum(x)  # 48
             l = torch.log(x)  # 5,3,3
