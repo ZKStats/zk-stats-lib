@@ -3,7 +3,7 @@ import torch.nn as nn
 
 import pytest
 
-from .utils import compile_and_check, compile_and_run_mpspdz, run_torch_model
+from .utils import compile_and_run_mpspdz, run_torch_model
 
 
 @pytest.mark.parametrize(
@@ -36,7 +36,14 @@ def test_two_inputs(func, tmp_path):
             #          =
             return func(x)
 
-    compile_and_check(Model, data, tmp_path)
+    # Run the model directly with torch
+    output_torch = run_torch_model(Model, data)
+    # Compile and run the model with MP-SPDZ
+    outputs_mpspdz = compile_and_run_mpspdz(Model, data, tmp_path)
+    # The model only has one output tensor
+    assert len(outputs_mpspdz) == 1, f"Expecting only one output tensor, but got {len(outputs_mpspdz)} tensors."
+    # Compare the output tensor with the expected output. Should be close
+    assert torch.allclose(outputs_mpspdz[0], output_torch, rtol=1e-3), f"Output tensor is not close to the expected output tensor. {outputs_mpspdz[0]=}, {output_torch=}"
 
 
 def log(x, base=None):
@@ -73,7 +80,10 @@ def test_two_inputs_with_logs(func, tmp_path):
             # to calculate ln(x) = log_2(x) / log_2(e)
             return func(x, base=e)
 
-    output_tensor_mpsdpz = compile_and_run_mpspdz(ModelMPSPDZ, data, tmp_path)
+    outputs_tensor_mpsdpz = compile_and_run_mpspdz(ModelMPSPDZ, data, tmp_path)
+    # The model only has one output tensor
+    assert len(outputs_tensor_mpsdpz) == 1, f"Expecting only one output tensor, but got {len(outputs_tensor_mpsdpz)} tensors."
+    output_mpspdz = outputs_tensor_mpsdpz[0]
 
     class ModelTorch(nn.Module):
         def forward(self, x):
@@ -81,8 +91,8 @@ def test_two_inputs_with_logs(func, tmp_path):
             return func(x, base=None)
 
     output_torch = run_torch_model(ModelTorch, data)
-    assert output_tensor_mpsdpz.shape == output_torch.shape, f"Output tensor shape is not the same. {output_tensor_mpsdpz.shape=}, {output_torch.shape=}"
+    assert output_mpspdz.shape == output_torch.shape, f"Output tensor shape is not the same. {output_mpspdz.shape=}, {output_torch.shape=}"
     # Compare the output tensor with the expected output.
     # Difference should be within 20% (|output_tensor_mpsdpz-output_torch|/|output_torch| <= error_rate)
     error_rate = 0.2
-    assert torch.allclose(output_tensor_mpsdpz, output_torch, rtol=error_rate), f"Output tensor is not close to the expected output tensor. {output_tensor_mpsdpz=}, {output_torch=}"
+    assert torch.allclose(output_mpspdz, output_torch, rtol=error_rate), f"Output tensor is not close to the expected output tensor. {output_tensor_mpsdpz=}, {output_torch=}"

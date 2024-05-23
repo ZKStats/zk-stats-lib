@@ -36,7 +36,7 @@ def compile_and_run_mpspdz(model_type: Type[nn.Module], data: torch.Tensor, tmp_
     torch_model_to_onnx(model_type, data, onnx_path)
     assert onnx_path.exists() is True, f"The output file {onnx_path} does not exist."
     print("Transforming onnx model to circom...")
-    onnx_to_circom(onnx_path, circom_path)
+    output_names_circom = onnx_to_circom(onnx_path, circom_path)
     assert circom_path.exists() is True, f"The output file {circom_path} does not exist."
 
     arithc_path = output_path / f"{model_name}.json"
@@ -131,19 +131,8 @@ def compile_and_run_mpspdz(model_type: Type[nn.Module], data: torch.Tensor, tmp_
     # E.g. mpspdz_output = {'keras_tensor_3': tensor(), '
     output_name_to_tensor = run_mpspdz_circuit(MP_SPDZ_PROJECT_ROOT, mpspdz_circuit_path)
     # we should only have one output tensor
-    assert len(output_name_to_tensor) == 1
-    # TODO: we should access the output tensor by name. It can be retrieved from keras model.
-    output_tensor_mpsdpz = next(iter(output_name_to_tensor.values()))
-    return output_tensor_mpsdpz
-
-
-def compile_and_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path: Path):
-    print("Running torch model...")
-    output_torch = run_torch_model(model_type, data)
-    print("!@# output_torch=", output_torch)
-    output_tensor_mpsdpz = compile_and_run_mpspdz(model_type, data, tmp_path)
-    # Compare the output tensor with the expected output. Should be close
-    assert torch.allclose(output_tensor_mpsdpz, output_torch, atol=1e-3), f"Output tensor is not close to the expected output tensor. {output_tensor_mpsdpz=}, {output_torch=}"
+    output_tensor_list = [output_name_to_tensor[name] for name in output_names_circom]
+    return output_tensor_list
 
 
 def run_torch_model(model_type: Type[nn.Module], data: torch.Tensor) -> torch.Tensor:

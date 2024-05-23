@@ -117,6 +117,8 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
         model_output.name: get_effective_shape(model_output.shape)
         for model_output in model.model_outputs
     }
+    circom_output_names = [output.name for output in model.model_outputs]
+
     # Declare signals for model inputs and outputs
     # E.g. signal input input_layer[2];
     input_signal_declarations = [
@@ -264,6 +266,8 @@ component main = Model();
     with open(output_dir + '/circuit.circom', 'w') as f:
         f.write(circom_result)
 
+    return circom_output_names
+
 
 def parse_args(template_args: typing.List[str], args: typing.Dict[str, typing.Any]) -> str:
     if len(template_args) != len(args):
@@ -274,10 +278,7 @@ def parse_args(template_args: typing.List[str], args: typing.Dict[str, typing.An
     return args_str.format(**args)
 
 
-# def get_effective_shape(shape: tuple[int, ...]) -> tuple:
-#     # remove the first dimension. E.g. (1, 2, 1) -> (2, 1)
-#     return shape[1:]
-def get_effective_shape(shape: tuple[int, ...]) -> tuple:
+def get_effective_shape(shape: tuple[int, ...]) -> tuple[int, ...]:
     # remove the first dimension. E.g. (1, 2, 1) -> (2, 1)
     return shape[1:]
 
