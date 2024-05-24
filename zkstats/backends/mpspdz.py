@@ -301,7 +301,7 @@ def generate_mpspdz_inputs_for_party(
     return input_file_for_party_mpspdz
 
 
-def mpspdz_output_to_tensors(output_dict: dict[str, Any]) -> dict[str, Any]:
+def mpspdz_output_to_tensors(output_dict: dict[str, Any]) -> dict[str, torch.Tensor]:
     pattern = re.compile(r"(\w+)((?:\[\d+\])*)")
 
     def parse_key(key: str) -> tuple[str, tuple[int, ...]]:
@@ -369,10 +369,30 @@ def mpspdz_output_to_tensors(output_dict: dict[str, Any]) -> dict[str, Any]:
     for name, data in tensor_data.items():
         shape = check_completeness_and_shape(data)
         tensor = build_tensor(data, shape)
-        result[name] = tensor.reshape(-1)
+        result[name] = tensor
 
     # Convert scalar values to tensor scalars
     for name, value in scalar_data.items():
         result[name] = torch.tensor(value)
 
     return result
+
+
+def tensors_to_circom_mpspdz_inputs(input_names: list[str], input_tensors: list[torch.Tensor]) -> dict[str, float]:
+    """
+    Flatten the input tensors and return a dictionary of the flattened tensors.
+
+    E.g. input_names = ['keras_tensor_0', 'input_2'], input_tensors = [torch.tensor([[[1], [34]]]), torch.tensor(5)]
+    Output: {'keras_tensor_0[0][0]': 1, 'keras_tensor_0[1][0]': 34, 'input_2': 5}
+    """
+    output_dict = {}
+
+    for name, tensor in zip(input_names, input_tensors):
+        if tensor.ndim == 0:  # scalar tensor
+            output_dict[name] = tensor.item()
+        else:
+            for idx in torch.cartesian_prod(*[torch.arange(s) for s in tensor.shape]):
+                idx_str = ''.join([f'[{i.item()}]' for i in idx])
+                output_dict[f'{name}{idx_str}'] = tensor[tuple(idx)].item()
+
+    return output_dict

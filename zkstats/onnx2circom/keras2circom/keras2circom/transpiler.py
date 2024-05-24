@@ -95,7 +95,7 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
     return {}
 
 
-def transpile(templates: dict[str, Template], filename: str, output_dir: str = 'output', raw: bool = False, dec: int = 0) -> None:
+def transpile(templates: dict[str, Template], filename: str, output_dir: str = 'output', raw: bool = False, dec: int = 0) -> tuple[list[str], list[str]]:
     '''
     Traverse a keras model and convert it to a circom circuit.
 
@@ -117,6 +117,7 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
         model_output.name: get_effective_shape(model_output.shape)
         for model_output in model.model_outputs
     }
+    circom_input_names = [input.name for input in model.model_inputs]
     circom_output_names = [output.name for output in model.model_outputs]
 
     # Declare signals for model inputs and outputs
@@ -266,7 +267,7 @@ component main = Model();
     with open(output_dir + '/circuit.circom', 'w') as f:
         f.write(circom_result)
 
-    return circom_output_names
+    return circom_input_names, circom_output_names
 
 
 def parse_args(template_args: typing.List[str], args: typing.Dict[str, typing.Any]) -> str:

@@ -1,6 +1,6 @@
 import torch
 
-from zkstats.backends.mpspdz import mpspdz_output_to_tensors
+from zkstats.backends.mpspdz import mpspdz_output_to_tensors, tensors_to_circom_mpspdz_inputs
 
 
 def test_mpspdz_output_to_tensors_success():
@@ -67,3 +67,11 @@ def test_mpspdz_output_to_tensors_missing_index_2d():
         assert str(e) == "Missing data for index (1, 1) in dimension 1"
     else:
         assert False, "Expected ValueError for missing index"
+
+
+def test_tensor_inputs_to_circom():
+    input_names = ['keras_tensor_0', 'input_2']
+    input_tensors = [torch.tensor([[[1], [34]]]), torch.tensor(5)]
+
+    output = tensors_to_circom_mpspdz_inputs(input_names, input_tensors)
+    assert output == {'keras_tensor_0[0][0][0]': 1, 'keras_tensor_0[0][1][0]': 34, 'input_2': 5}
