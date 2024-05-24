@@ -383,7 +383,7 @@ def tensors_to_circom_mpspdz_inputs(input_names: list[str], input_tensors: list[
     Flatten the input tensors and return a dictionary of the flattened tensors.
 
     E.g. input_names = ['keras_tensor_0', 'input_2'], input_tensors = [torch.tensor([[[1], [34]]]), torch.tensor(5)]
-    Output: {'keras_tensor_0[0][0]': 1, 'keras_tensor_0[1][0]': 34, 'input_2': 5}
+    Output: {'keras_tensor_0[0][0][0]': 1, 'keras_tensor_0[0][1][0]': 34, 'input_2': 5}
     """
     output_dict = {}
 
