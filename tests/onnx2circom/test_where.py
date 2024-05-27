@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from .utils import compile_and_check
+from .utils import compile_and_run_mpspdz
 
 def test_where(tmp_path):
     data_1 = torch.tensor(
@@ -23,4 +23,6 @@ def test_where(tmp_path):
             return torch.where(x>=8, x, 11)
             return torch.where(x>=8, 0, 9)
 
-    compile_and_check(Model, (data_1, data_2), tmp_path)
+    res = compile_and_run_mpspdz(Model, (data_1, data_2), tmp_path)
+    output_0 = res[0]
+    assert torch.allclose(output_0, torch.tensor([32, 10, 8], dtype=torch.float32)), f"{output_0=}"
