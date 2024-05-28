@@ -163,6 +163,10 @@ def run_torch_model(model_type: Type[nn.Module], data: tuple[torch.Tensor]) -> t
 
 def torch_model_to_onnx(model_type: Type[nn.Module], data: tuple[torch.Tensor], output_onnx_path: Path):
   model = model_type()
+  try:
+    model.preprocess(data)
+  except AttributeError:
+    pass
   input_names = []
   dynamic_axes = {}
   for i in range(len(data)):

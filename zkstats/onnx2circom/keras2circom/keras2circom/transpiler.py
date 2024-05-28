@@ -22,12 +22,13 @@ from zkstats.onnx2circom.onnx2keras.layers import (
     TFReduceMin,
     TFEqual,
     TFGreater,
-    TFLess, 
+    TFLess,
     TFNot,
     TFCast,
-    TFAnd, 
-    TFOr, 
-    TFWhere
+    TFAnd,
+    TFOr,
+    TFWhere,
+    TFAbs,
     # TFArgMax,
     # TFArgMin,
 )
@@ -55,12 +56,13 @@ SUPPORTED_OPS = [
     TFExp,  # e^n
     TFEqual,
     TFGreater,
-    TFLess, 
+    TFLess,
     TFNot,
     TFAnd,
     TFOr,
-    TFCast, 
-    TFWhere
+    TFCast,
+    TFWhere,
+    TFAbs,
     # TFErf,
 ]
 
@@ -94,7 +96,7 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
         return {'e': 2, 'nInputs': num_elements_in_input_0}
     if is_in_ops(layer.op, [TFReduceSum, TFReduceMean]):
         return {'nInputs': num_elements_in_input_0}
-    if is_in_ops(layer.op, [TFNot, TFCast, TFWhere]):
+    if is_in_ops(layer.op, [TFNot, TFCast, TFWhere, TFAbs]):
         return {'nElements': num_elements_in_input_0}
     # 2 inputs operations
     if is_in_ops(layer.op, [TFAdd, TFSub, TFMul, TFDiv, TFEqual, TFGreater, TFLess, TFAnd, TFOr]):
