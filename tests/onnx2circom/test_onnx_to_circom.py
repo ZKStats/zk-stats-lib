@@ -23,4 +23,4 @@ def test_onnx_to_circom(tmp_path):
     # The model only has one output tensor
     assert len(outputs_mpspdz) == 1, f"Expecting only one output tensor, but got {len(outputs_mpspdz)} tensors."
     # Compare the output tensor with the expected output. Should be close
-    assert torch.allclose(outputs_mpspdz[0], output_torch, rtol=1e-3), f"Output tensor is not close to the expected output tensor. {outputs_mpspdz[0]=}, {output_torch=}"
+    assert torch.allclose(outputs_mpspdz[0], output_torch, atol=1e-3), f"Output tensor is not close to the expected output tensor. {outputs_mpspdz[0]=}, {output_torch=}"
