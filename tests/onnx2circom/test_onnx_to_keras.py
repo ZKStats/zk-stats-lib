@@ -41,7 +41,7 @@ class LogModel(nn.Module):
     [
         (SumModel, torch.tensor(100.0)),
         (MeanModel, torch.tensor(33.333)),
-        (LogModel, torch.tensor([2.3026, 3.6889, 3.9120]).reshape(1, -1, 1)),
+        (LogModel, torch.tensor([2.3026, 3.6889, 3.9120])),
     ]
 )
 def test_onnx_to_keras(tmp_path, model_type: Type[nn.Module], expected_res: float):
@@ -81,5 +81,5 @@ def run_keras_model(keras_path: Path, data: torch.Tensor) -> torch.Tensor:
     # result is numpy.float32
     output_keras = model.predict(data)
     # Transform it to torch.Tensor to make it align with torch output
-    return torch.tensor(output_keras, dtype = torch.float32)
+    return torch.tensor(output_keras, dtype = torch.float32).reshape(-1)
 
