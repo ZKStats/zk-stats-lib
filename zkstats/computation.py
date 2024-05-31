@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import Callable, Type, Optional, Union
 
 import torch
@@ -27,7 +27,116 @@ DEFAULT_ERROR = 0.01
 MagicNumber = 99.999
 
 
-class State:
+class IState(ABC):
+    @abstractmethod
+    def mean(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the mean of the input tensor. The behavior should conform to
+        [statistics.mean](https://docs.python.org/3/library/statistics.html#statistics.mean) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def median(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the median of the input tensor. The behavior should conform to
+        [statistics.median](https://docs.python.org/3/library/statistics.html#statistics.median) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def geometric_mean(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the geometric mean of the input tensor. The behavior should conform to
+        [statistics.geometric_mean](https://docs.python.org/3/library/statistics.html#statistics.geometric_mean) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def harmonic_mean(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the harmonic mean of the input tensor. The behavior should conform to
+        [statistics.harmonic_mean](https://docs.python.org/3/library/statistics.html#statistics.harmonic_mean) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def mode(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the mode of the input tensor. The behavior should conform to
+        [statistics.mode](https://docs.python.org/3/library/statistics.html#statistics.mode) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def pstdev(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the population standard deviation of the input tensor. The behavior should conform to
+        [statistics.pstdev](https://docs.python.org/3/library/statistics.html#statistics.pstdev) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def pvariance(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the population variance of the input tensor. The behavior should conform to
+        [statistics.pvariance](https://docs.python.org/3/library/statistics.html#statistics.pvariance) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def stdev(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the sample standard deviation of the input tensor. The behavior should conform to
+        [statistics.stdev](https://docs.python.org/3/library/statistics.html#statistics.stdev) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def variance(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the sample variance of the input tensor. The behavior should conform to
+        [statistics.variance](https://docs.python.org/3/library/statistics.html#statistics.variance) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def covariance(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the covariance of x and y. The behavior should conform to
+        [statistics.covariance](https://docs.python.org/3/library/statistics.html#statistics.covariance) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def correlation(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the correlation of x and y. The behavior should conform to
+        [statistics.correlation](https://docs.python.org/3/library/statistics.html#statistics.correlation) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def linear_regression(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the linear regression of x and y. The behavior should conform to
+        [statistics.linear_regression](https://docs.python.org/3/library/statistics.html#statistics.linear_regression) in Python standard library.
+        """
+        ...
+
+    @abstractmethod
+    def where(self, _filter: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the where operation of x. The behavior should conform to `torch.where` in PyTorch.
+
+        :param _filter: A boolean tensor serves as a filter
+        :param x: A tensor to be filtered
+        :return: filtered tensor
+        """
+        ...
+
+
+class State(IState):
     """
     State is a container for intermediate results of computation.
 
@@ -53,99 +162,44 @@ class State:
         self.current_op_index = 0
 
     def mean(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the mean of the input tensor. The behavior should conform to
-        [statistics.mean](https://docs.python.org/3/library/statistics.html#statistics.mean) in Python standard library.
-        """
         return self._call_op([x], Mean)
 
     def median(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the median of the input tensor. The behavior should conform to
-        [statistics.median](https://docs.python.org/3/library/statistics.html#statistics.median) in Python standard library.
-        """
         return self._call_op([x], Median)
 
     def geometric_mean(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the geometric mean of the input tensor. The behavior should conform to
-        [statistics.geometric_mean](https://docs.python.org/3/library/statistics.html#statistics.geometric_mean) in Python standard library.
-        """
         return self._call_op([x], GeometricMean)
 
     def harmonic_mean(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the harmonic mean of the input tensor. The behavior should conform to
-        [statistics.harmonic_mean](https://docs.python.org/3/library/statistics.html#statistics.harmonic_mean) in Python standard library.
-        """
         return self._call_op([x], HarmonicMean)
 
     def mode(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the mode of the input tensor. The behavior should conform to
-        [statistics.mode](https://docs.python.org/3/library/statistics.html#statistics.mode) in Python standard library.
-        """
         return self._call_op([x], Mode)
 
     def pstdev(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the population standard deviation of the input tensor. The behavior should conform to
-        [statistics.pstdev](https://docs.python.org/3/library/statistics.html#statistics.pstdev) in Python standard library.
-        """
         return self._call_op([x], PStdev)
 
     def pvariance(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the population variance of the input tensor. The behavior should conform to
-        [statistics.pvariance](https://docs.python.org/3/library/statistics.html#statistics.pvariance) in Python standard library.
-        """
         return self._call_op([x], PVariance)
 
     def stdev(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the sample standard deviation of the input tensor. The behavior should conform to
-        [statistics.stdev](https://docs.python.org/3/library/statistics.html#statistics.stdev) in Python standard library.
-        """
         return self._call_op([x], Stdev)
 
     def variance(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the sample variance of the input tensor. The behavior should conform to
-        [statistics.variance](https://docs.python.org/3/library/statistics.html#statistics.variance) in Python standard library.
-        """
         return self._call_op([x], Variance)
 
     def covariance(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the covariance of x and y. The behavior should conform to
-        [statistics.covariance](https://docs.python.org/3/library/statistics.html#statistics.covariance) in Python standard library.
-        """
         return self._call_op([x, y], Covariance)
 
     def correlation(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the correlation of x and y. The behavior should conform to
-        [statistics.correlation](https://docs.python.org/3/library/statistics.html#statistics.correlation) in Python standard library.
-        """
         return self._call_op([x, y], Correlation)
 
     def linear_regression(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the linear regression of x and y. The behavior should conform to
-        [statistics.linear_regression](https://docs.python.org/3/library/statistics.html#statistics.linear_regression) in Python standard library.
-        """
         # hence support only one x for now
         return self._call_op([x, y], Regression)
 
     # WHERE operation
     def where(self, _filter: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate the where operation of x. The behavior should conform to `torch.where` in PyTorch.
-
-        :param _filter: A boolean tensor serves as a filter
-        :param x: A tensor to be filtered
-        :return: filtered tensor
-        """
         return torch.where(_filter, x, x-x+MagicNumber)
 
     def _call_op(self, x: list[torch.Tensor], op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
@@ -161,7 +215,7 @@ class State:
                     if op_class_str not in self.op_dict:
                         self.precal_witness[op_class_str+"_0"] = [op.result.data.item()]
                         self.op_dict[op_class_str] = 1
-                    else: 
+                    else:
                         self.precal_witness[op_class_str+"_"+str(self.op_dict[op_class_str])] = [op.result.data.item()]
                         self.op_dict[op_class_str]+=1
                 elif isinstance(op, Median):
@@ -177,7 +231,7 @@ class State:
                     if op_class_str not in self.op_dict:
                         self.precal_witness[op_class_str+"_0"] = [op.result.data.item(), op.data_mean.data.item()]
                         self.op_dict[op_class_str] = 1
-                    else: 
+                    else:
                         self.precal_witness[op_class_str+"_"+str(self.op_dict[op_class_str])] = [op.result.data.item(), op.data_mean.data.item()]
                         self.op_dict[op_class_str]+=1
                 elif isinstance(op, Covariance):
@@ -279,7 +333,7 @@ class IModel(nn.Module):
 TComputation = Callable[[State, list[torch.Tensor]], torch.Tensor]
 
 
-def computation_to_model(computation: TComputation, precal_witness_path:str, isProver:bool ,error: float = DEFAULT_ERROR ) -> tuple[State, Type[IModel]]:
+def computation_to_model(computation: TComputation, precal_witness_path:str, isProver: bool, error: float = DEFAULT_ERROR) -> tuple[State, Type[IModel]]:
     """
     Create a torch model from a `computation` function defined by user
     :param computation: A function that takes a State and a list of torch.Tensor, and returns a torch.Tensor
@@ -289,7 +343,7 @@ def computation_to_model(computation: TComputation, precal_witness_path:str, isP
     """
     state = State(error)
     # if it's verifier
-    
+
     state.precal_witness_path= precal_witness_path
     state.isProver = isProver
 
@@ -308,3 +362,52 @@ def computation_to_model(computation: TComputation, precal_witness_path:str, isP
     # print('state:: ', state.aggregate_witness_path)
     return state, Model
 
+
+class MPCState(IState):
+    def mean(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.mean(x[x != MagicNumber])
+
+    def median(self, x: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def geometric_mean(self, x: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def harmonic_mean(self, x: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def mode(self, x: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def pstdev(self, x: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def pvariance(self, x: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def stdev(self, x: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def variance(self, x: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def covariance(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def correlation(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def linear_regression(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+    def where(self, _filter: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+
+def computation_to_model_mpc(computation: TComputation) -> tuple[State, Type[IModel]]:
+    state = MPCState()
+
+    class Model(IModel):
+        def forward(self, *x: list[torch.Tensor]) -> torch.Tensor:
+            return computation(state, x)
+    return state, Model

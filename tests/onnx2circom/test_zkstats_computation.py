@@ -1,12 +1,13 @@
 import torch
-import torch.nn as nn
+from typing import Type
+
+from zkstats.computation import IState, computation_to_model_mpc
 
 from .utils import compile_and_run_mpspdz
 
-from zkstats.computation import State, computation_to_model
 
 
-def computation(state: State, args: list[torch.Tensor]):
+def computation(state: IState, args: list[torch.Tensor]):
     x = args[0]
     # y = args[1]
     # z = args[2]
@@ -20,11 +21,6 @@ def test_computation(tmp_path):
         dtype = torch.float32,
     ).reshape(1, -1, 1)
 
-    precal_witness_path = tmp_path / "precal_witness_path.json"
-    state, Model = computation_to_model(computation, precal_witness_path, True)
-
-    # class Model(nn.Module):
-    #     def forward(self, *x):
-    #         return torch.mean(x[0])
+    state, Model = computation_to_model_mpc(computation)
 
     compile_and_run_mpspdz(Model, tuple([data_1]), tmp_path)
