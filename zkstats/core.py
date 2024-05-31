@@ -355,7 +355,7 @@ def _gen_settings(
   # Poseidon is not homomorphic additive, maybe consider Pedersens or Dory commitment.
   gip_run_args = ezkl.PyRunArgs()
   gip_run_args.input_visibility = "hashed"  # one commitment (values hashed) for each column
-  gip_run_args.param_visibility = "private"  # no parameters shown
+  gip_run_args.param_visibility = "fixed"  # no parameters shown
   gip_run_args.output_visibility = "public"  # should be `(torch.Tensor(1.0), output)`
 
  # generate settings
