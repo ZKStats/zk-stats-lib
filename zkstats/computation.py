@@ -365,8 +365,10 @@ def computation_to_model(computation: TComputation, precal_witness_path:str, isP
 
 class MPCState(IState):
     def mean(self, x: torch.Tensor) -> torch.Tensor:
-        # return torch.mean(x[x != MagicNumber])
-        return torch.mean(x)
+        total = torch.sum(torch.where(x != MagicNumber, x, 0.0))
+        size = torch.sum(torch.where(x != MagicNumber, 1.0, 0.0))
+        # TODO: what if size is 0?
+        return total / size
 
     def median(self, x: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
