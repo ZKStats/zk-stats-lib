@@ -54,9 +54,7 @@ Clone the repo
 cd ..
 git clone https://github.com/mhchia/MP-SPDZ
 cd MP-SPDZ
-git remote add kevin_mpc https://github.com/mhchia/MP-SPDZ.git
-git fetch kevin_mpc
-git checkout -b arith-executor kevin_mpc/arith-executor
+git checkout arith-executor
 mp_spdz_project_root=$(pwd)
 ```
 
