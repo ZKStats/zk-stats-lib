@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod, abstractclassmethod
+from abc import ABC, abstractmethod
 import statistics
 from typing import Optional
 
@@ -15,14 +15,14 @@ class Operation(ABC):
         self.result = torch.nn.Parameter(data=result, requires_grad=False)
         self.error = error
 
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def create(cls, x: list[torch.Tensor], error: float) -> 'Operation':
         ...
 
     @abstractmethod
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         ...
-
 
 
 class Mean(Operation):
@@ -80,7 +80,7 @@ class Median(Operation):
             if op_dict is None:
                 super().__init__(torch.tensor(precal_witness['Median_0'][0]), error)
                 self.lower = torch.nn.Parameter(data = torch.tensor(precal_witness['Median_0'][1]), requires_grad=False)
-                self.upper = torch.nn.Parameter(data = torch.tensor(precal_witness['Median_0'][2]), requires_grad=False)             
+                self.upper = torch.nn.Parameter(data = torch.tensor(precal_witness['Median_0'][2]), requires_grad=False)
             elif 'Median' not in op_dict:
                 super().__init__(torch.tensor(precal_witness['Median_0'][0]), error)
                 self.lower = torch.nn.Parameter(data = torch.tensor(precal_witness['Median_0'][1]), requires_grad=False)
@@ -163,7 +163,7 @@ class HarmonicMean(Operation):
                 return cls(torch.tensor(precal_witness['HarmonicMean_0'][0]), error)
             else:
                 return cls(torch.tensor(precal_witness['HarmonicMean_'+str(op_dict['HarmonicMean'])][0]), error)
-     
+
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         # Assume x is [n, 1]
@@ -234,7 +234,7 @@ class Mode(Operation):
                 return cls(torch.tensor(precal_witness['Mode_0'][0]), error)
             else:
                 return cls(torch.tensor(precal_witness['Mode_'+str(op_dict['Mode'])][0]), error)
-     
+
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         # Assume x is [n, 1]
@@ -368,7 +368,7 @@ class Variance(Operation):
         else:
             if op_dict is None:
                 super().__init__(torch.tensor(precal_witness['Variance_0'][0]), error)
-                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Variance_0'][1]), requires_grad=False)         
+                self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Variance_0'][1]), requires_grad=False)
             elif 'Variance' not in op_dict:
                 super().__init__(torch.tensor(precal_witness['Variance_0'][0]), error)
                 self.data_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Variance_0'][1]), requires_grad=False)
@@ -396,7 +396,7 @@ class Variance(Operation):
 
 class Covariance(Operation):
     def __init__(self, x: torch.Tensor, y: torch.Tensor, error: float,  precal_witness:Optional[dict] = None, op_dict:Optional[dict[str,int]] = None):
-        if precal_witness is None: 
+        if precal_witness is None:
             x_1d = to_1d(x)
             x_1d = x_1d[x_1d!=MagicNumber]
             y_1d = to_1d(y)
@@ -413,7 +413,7 @@ class Covariance(Operation):
             if op_dict is None:
                 super().__init__(torch.tensor(precal_witness['Covariance_0'][0]), error)
                 self.x_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Covariance_0'][1]), requires_grad=False)
-                self.y_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Covariance_0'][2]), requires_grad=False)  
+                self.y_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Covariance_0'][2]), requires_grad=False)
             elif 'Covariance' not in op_dict:
                 super().__init__(torch.tensor(precal_witness['Covariance_0'][0]), error)
                 self.x_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Covariance_0'][1]), requires_grad=False)
@@ -479,7 +479,7 @@ class Correlation(Operation):
                 self.y_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][2]), requires_grad=False)
                 self.x_std = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][3]), requires_grad=False)
                 self.y_std = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][4]), requires_grad=False)
-                self.cov = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][5]), requires_grad=False)       
+                self.cov = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][5]), requires_grad=False)
             elif 'Correlation' not in op_dict:
                 super().__init__(torch.tensor(precal_witness['Correlation_0'][0]), error)
                 self.x_mean = torch.nn.Parameter(data = torch.tensor(precal_witness['Correlation_0'][1]), requires_grad=False)
@@ -557,7 +557,7 @@ class Regression(Operation):
             #     precal_witness_arr.append(torch.tensor(ele))
             # print('resultopppp: ', result)
             super().__init__(result,error)
-            
+
 
     @classmethod
     def create(cls, args: list[torch.Tensor], error: float, precal_witness:Optional[dict] = None, op_dict:Optional[dict[str,int]] = None) -> 'Regression':

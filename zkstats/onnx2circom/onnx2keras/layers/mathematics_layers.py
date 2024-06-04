@@ -33,7 +33,7 @@ def match_tensor(x1:tf.Tensor or np.ndarray, x2:tf.Tensor or np.ndarray):
     if len(x1.shape) != len(x2.shape):
         while len(x2.shape) < len(x1.shape):
             x2 = tf.expand_dims(x2, axis=0)
-    
+
     # new_shape = dimension_utils.shape_NCD_to_NDC_format([i for i in range(len(x2.shape))])
     # x2 = tf.transpose(x2, new_shape)
     return (x2, x1) if f2 else (x1, x2)
@@ -53,7 +53,7 @@ class TFAdd(keras.layers.Layer):
 
     def call(self, first_operand, second_operand,*args, **kwargs):
         return keras.ops.add(first_operand, second_operand)
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -80,7 +80,7 @@ class TFSub(keras.layers.Layer):
 
     def call(self, first_operand, second_operand,*args, **kwargs):
         return keras.ops.subtract(first_operand, second_operand)
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -107,7 +107,7 @@ class TFMul(keras.layers.Layer):
 
     def call(self, first_operand, second_operand,*args, **kwargs):
         return keras.ops.multiply(first_operand, second_operand)
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -148,7 +148,7 @@ class TFDiv(keras.layers.Layer):
              "second_operand": self.second_operand,
         })
         return config
-    
+
 @OPERATOR.register_operator("Equal")
 class TFEqual(keras.layers.Layer):
     def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
@@ -164,7 +164,7 @@ class TFEqual(keras.layers.Layer):
     def call(self, first_operand, second_operand,*args, **kwargs):
         return keras.ops.equal(first_operand, second_operand)
 
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -193,7 +193,7 @@ class TFLess(keras.layers.Layer):
     def call(self,first_operand, second_operand, *args, **kwargs):
         return keras.ops.less(first_operand, second_operand)
 
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -205,7 +205,7 @@ class TFLess(keras.layers.Layer):
              "second_operand": self.second_operand,
         })
         return config
-    
+
 @OPERATOR.register_operator("Greater")
 class TFGreater(keras.layers.Layer):
     def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
@@ -221,8 +221,8 @@ class TFGreater(keras.layers.Layer):
 
     def call(self,first_operand, second_operand, *args, **kwargs):
         return keras.ops.greater(first_operand, second_operand)
-    
-    
+
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -236,7 +236,7 @@ class TFGreater(keras.layers.Layer):
         })
         return config
 
-    
+
 @OPERATOR.register_operator("Where")
 class TFWhere(keras.layers.Layer):
     def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
@@ -264,7 +264,7 @@ class TFWhere(keras.layers.Layer):
              "false_value": self.false_value
         })
         return config
-    
+
 @OPERATOR.register_operator("Not")
 class TFNot(keras.layers.Layer):
     def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
@@ -287,7 +287,7 @@ class TFNot(keras.layers.Layer):
             'node_attribute':self.node_attribute,
         })
         return config
-    
+
 @OPERATOR.register_operator("And")
 class TFAnd(keras.layers.Layer):
     def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
@@ -298,7 +298,7 @@ class TFAnd(keras.layers.Layer):
         self.node_attribute = node_attribute
     def call(self,  *args, **kwargs):
         return keras.ops.logical_and(args[0], args[1])
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -320,7 +320,7 @@ class TFOr(keras.layers.Layer):
 
     def call(self,  *args, **kwargs):
         return keras.ops.logical_or(args[0], args[1])
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -334,11 +334,26 @@ class TFOr(keras.layers.Layer):
 
 @OPERATOR.register_operator("Abs")
 class TFAbs(keras.layers.Layer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
         super().__init__()
+        self.tensor_grap = tensor_grap
+        self.node_weights = node_weights
+        self.node_inputs = node_inputs
+        self.node_attribute = node_attribute
 
-    def call(self,input,  *args, **kwargs):
-        return keras.ops.absolute(input)
+
+    def call(self,input, *args, **kwargs):
+        return keras.ops.abs(input)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "tensor_grap":self.tensor_grap,
+            'node_weights':self.node_weights,
+            'node_inputs':self.node_inputs,
+            'node_attribute':self.node_attribute,
+        })
+        return config
 
 @OPERATOR.register_operator("Neg")
 class TFNeg(keras.layers.Layer):
@@ -400,7 +415,7 @@ class TFFloor(keras.layers.Layer):
 
     def call(self, inputs, *args, **kwargs):
         return keras.ops.floor(inputs)
-    
+
 @OPERATOR.register_operator("Ceil")
 class TFCeil(keras.layers.Layer):
     def __init__(self, *args, **kwargs):
@@ -474,7 +489,7 @@ class TFReduceSum(keras.layers.Layer):
 
         self.keep_dims = node_attribute.get("keepdims", 1) == 1
         self.axes = node_attribute.get("axes", None)
-       
+
     def call(self, inputs, *args, **kwargs):
         return keras.ops.sum(inputs, axis = self.axes, keepdims=self.keep_dims)
 
@@ -500,10 +515,10 @@ class TFReduceMean(keras.layers.Layer):
 
         self.keep_dims = node_attribute.get("keepdims", 1) == 1
         self.axes = node_attribute.get("axes", None)
-       
+
     def call(self, inputs, *args, **kwargs):
         return keras.ops.mean(inputs, axis = self.axes, keepdims=self.keep_dims)
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -533,7 +548,7 @@ class TFConstantOfShape(keras.layers.Layer):
         self.node_inputs = node_inputs
         self.node_attribute = node_attribute
         self.value = self.node_attribute['value']
-        
+
     def call(self, inputs,*args, **kwargs):
         # print("should be one:::: ", self.node_attribute['value'][0])
         # print('type : ', type(self.node_attribute['value'][0]))
@@ -552,14 +567,14 @@ class TFConstantOfShape(keras.layers.Layer):
         print('shapeyy const size: ', keras.ops.full(inputs.shape, fill_in).shape)
         return keras.ops.full(inputs, fill_in)
 
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
             "tensor_grap":self.tensor_grap,
             'node_weights':self.node_weights,
             'node_inputs':self.node_inputs,
-            'node_attribute':self.node_attribute, 
+            'node_attribute':self.node_attribute,
             'value': self.value
         })
         return config
@@ -580,7 +595,7 @@ class TFMatMul(keras.layers.Layer):
     def call(self,first_operand, second_operand, *args, **kwargs):
         return keras.ops.matmul(first_operand, second_operand)
 
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -591,8 +606,8 @@ class TFMatMul(keras.layers.Layer):
              "second_operand": self.second_operand
         })
         return config
-    
-    
+
+
 # TO SUPPORT LATER
 
 # @OPERATOR.register_operator("Pow")
@@ -606,7 +621,7 @@ class TFMatMul(keras.layers.Layer):
 
 #     def call(self, inputs, *args, **kwargs):
 #         return keras.ops.power(inputs, self.power_index)
-    
+
 #     def get_config(self):
 #         config = super().get_config()
 #         config.update({
@@ -648,7 +663,7 @@ class TFMatMul(keras.layers.Layer):
 # class TFErf():
 #     def __init__(self, *args, **kwargs) -> None:
 #         pass
-    
+
 #     def __call__(self, inputs):
 #         inputs = tf.math.erf(inputs)
 #         return inputs

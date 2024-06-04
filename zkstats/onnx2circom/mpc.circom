@@ -110,6 +110,17 @@ template TFWhere(nElements) {
     }
 }
 
+template TFAbs(nElements) {
+    // condition
+    signal input in[nElements];
+    signal output out[nElements];
+
+    for (var i = 0; i < nElements; i++) {
+        // in[i] > 0 ? in[i] : -in[i]
+        out[i] <== in[i] * (2 * (in[i] >= 0) - 1);
+    }
+}
+
 template TFReduceSum(nInputs) {
     signal input in[nInputs];
     signal output out;
