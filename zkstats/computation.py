@@ -196,7 +196,7 @@ class State:
                         self.op_dict['Correlation']+=1
                 elif isinstance(op, Regression):
                     result_array = []
-                    for ele in op.result.data[0]:
+                    for ele in op.result.data:
                         result_array.append(ele[0].item())
                     if 'Regression' not in self.op_dict:
                         self.precal_witness['Regression_0'] = [result_array]
@@ -204,6 +204,14 @@ class State:
                     else:
                         self.precal_witness['Regression_'+str(self.op_dict['Regression'])] = [result_array]
                         self.op_dict['Regression']+=1
+                    # for ele in op.result.data[0]:
+                    #     result_array.append(ele[0].item())
+                    # if 'Regression' not in self.op_dict:
+                    #     self.precal_witness['Regression_0'] = [result_array]
+                    #     self.op_dict['Regression']=1
+                    # else:
+                    #     self.precal_witness['Regression_'+str(self.op_dict['Regression'])] = [result_array]
+                    #     self.op_dict['Regression']+=1
             # for verifier
             else:
                 # print('Verifier side create')
@@ -252,13 +260,13 @@ class State:
                     is_precise_aggregated = torch.logical_and(is_precise_aggregated, res)
                 if self.isProver:
                     json.dump(self.precal_witness, open(self.precal_witness_path, 'w'))
-                return is_precise_aggregated, op.result+(x[0]-x[0])[0][0][0]
+                return is_precise_aggregated, op.result+(x[0]-x[0])[0][0]
 
             elif current_op_index > len_ops - 1:
                 # Sanity check that current op index does not exceed the length of ops
                 raise Exception(f"current_op_index out of bound: {current_op_index=} > {len_ops=}")
             else:
-                return op.result+(x[0]-x[0])[0][0][0]
+                return op.result+(x[0]-x[0])[0][0]
 
 
 class IModel(nn.Module):
@@ -302,7 +310,7 @@ def computation_to_model(computation: TComputation, precal_witness_path:str, isP
             # print('x sy: ')
             result =  computation(state, x)
             if len(result) ==1:
-                return x[0][0][0][0]-x[0][0][0][0]+torch.tensor(1.0), result
+                return (x[0]-x[0])[0][0]+torch.tensor(1.0), result
             else:
                 return result
     # print('state:: ', state.aggregate_witness_path)

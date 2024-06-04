@@ -39,7 +39,7 @@ def nested_computation(state: State, args: list[torch.Tensor]):
     out_8 = state.covariance(x, y)
     out_9 = state.correlation(y, z)
     out_10 = state.linear_regression(x, y)
-    slope, intercept = out_10[0][0][0], out_10[0][1][0]
+    slope, intercept = out_10[0][0], out_10[1][0]
     reshaped = torch.cat((
         out_0.unsqueeze(0),
         out_1.unsqueeze(0),
@@ -53,7 +53,7 @@ def nested_computation(state: State, args: list[torch.Tensor]):
         out_9.unsqueeze(0),
         slope.unsqueeze(0),
         intercept.unsqueeze(0),
-    )).reshape(1,-1,1)
+    )).reshape(-1,1)
     out_10 = state.mean(reshaped)
     return out_10
 
@@ -125,9 +125,9 @@ def test_nested_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Te
     op_10 = ops[10]
     assert isinstance(op_10, Regression)
     out_10 = statistics.linear_regression(x.tolist(), y.tolist())
-    assert op_10.result.shape == (1, 2, 1)
-    assert_result(op_10.result[0][0][0], out_10.slope)
-    assert_result(op_10.result[0][1][0], out_10.intercept)
+    assert op_10.result.shape == ( 2, 1)
+    assert_result(op_10.result[0][0], out_10.slope)
+    assert_result(op_10.result[1][0], out_10.intercept)
 
     op_11 = ops[11]
     assert isinstance(op_11, Mean)
