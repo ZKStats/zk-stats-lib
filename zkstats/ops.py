@@ -53,10 +53,10 @@ class Mean(Operation):
 
 def to_1d(x: torch.Tensor) -> torch.Tensor:
     x_shape = x.size()
-    # Only allows 1d array or [1, len(x), 1]
+    # Only allows 1d array or [len(x), 1]
     if len(x_shape) == 1:
         return x
-    elif len(x_shape) == 3 and x_shape[0] == 1 and x_shape[2] == 1:
+    elif len(x_shape) == 2 and x_shape[1] == 1:
         return x.reshape(-1)
     else:
         raise Exception(f"Unsupported shape: {x_shape=}")
@@ -97,7 +97,7 @@ class Median(Operation):
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
         x = x[0]
-        old_size = x.size()[1]
+        old_size = x.size()[0]
         size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         min_x = torch.min(x)
         x = torch.where(x==MagicNumber,min_x-1, x)
@@ -141,7 +141,7 @@ class GeometricMean(Operation):
                 return cls(torch.tensor(precal_witness['GeometricMean_'+str(op_dict['GeometricMean'])][0]), error)
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
-        # Assume x is [1, n, 1]
+        # Assume x is [n, 1]
         x = x[0]
         size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         x = torch.where(x==MagicNumber, 1.0, x)
@@ -166,7 +166,7 @@ class HarmonicMean(Operation):
      
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
-        # Assume x is [1, n, 1]
+        # Assume x is [n, 1]
         x = x[0]
         size = torch.sum(torch.where(x!=MagicNumber, 1.0, 0.0))
         return torch.abs((self.result*torch.sum(torch.where(x==MagicNumber, 0.0, torch.div(1.0, x)))) - size)<=torch.abs(self.error*size)
@@ -237,15 +237,15 @@ class Mode(Operation):
      
 
     def ezkl(self, x: list[torch.Tensor]) -> IsResultPrecise:
-        # Assume x is [1, n, 1]
+        # Assume x is [n, 1]
         x = x[0]
         min_x = torch.min(x)
-        old_size = x.size()[1]
+        old_size = x.size()[0]
         x = torch.where(x==MagicNumber, min_x-1, x)
         count_equal = torch.sum(torch.where(x==self.result, 1.0, 0.0))
 
         count_check = 0
-        for ele in x[0]:
+        for ele in x:
             bool1 = torch.sum(torch.where(x==ele[0], 1.0, 0.0))<=count_equal
             bool2 = ele[0]==min_x-1
             count_check += torch.logical_or(bool1, bool2)
@@ -538,16 +538,20 @@ class Regression(Operation):
 
             x_one = stacked_x(x_1ds)
             result_1d = np.matmul(np.matmul(np.linalg.inv(np.matmul(x_one.transpose(), x_one)), x_one.transpose()), y_1d)
-            result = torch.tensor(result_1d, dtype = torch.float32).reshape(1, -1, 1)
-            # print('result: ', result)
+            # result = torch.tensor(result_1d, dtype = torch.float32).reshape(1, -1, 1)
+            result = torch.tensor(result_1d, dtype = torch.float32).reshape(-1,1)
             super().__init__(result, error)
+            # print('result regression: ', result)
         else:
             if op_dict is None:
-                result = torch.tensor(precal_witness['Regression_0']).reshape(1,-1,1)
+                # result = torch.tensor(precal_witness['Regression_0']).reshape(1,-1,1)
+                result = torch.tensor(precal_witness['Regression_0']).reshape(-1,1)
             elif 'Regression' not in op_dict:
-                result = torch.tensor(precal_witness['Regression_0']).reshape(1,-1,1)
+                # result = torch.tensor(precal_witness['Regression_0']).reshape(1,-1,1)
+                result = torch.tensor(precal_witness['Regression_0']).reshape(-1,1)
             else:
-                result = torch.tensor(precal_witness['Regression_'+str(op_dict['Regression'])]).reshape(1,-1,1)
+                # result = torch.tensor(precal_witness['Regression_'+str(op_dict['Regression'])]).reshape(1,-1,1)
+                result = torch.tensor(precal_witness['Regression_'+str(op_dict['Regression'])]).reshape(-1,1)
 
             # for ele in precal_witness['Regression']:
             #     precal_witness_arr.append(torch.tensor(ele))
@@ -565,9 +569,9 @@ class Regression(Operation):
          # infer y from the last parameter
         y = args[-1]
         y = torch.where(y==MagicNumber,0.0, y)
-        x_one = torch.cat((*args[:-1], torch.ones_like(args[0])), dim=2)
-        x_one = torch.where((x_one[:,:,0] ==MagicNumber).unsqueeze(-1), torch.tensor([0.0]*x_one.size()[2]), x_one)
-        x_t = torch.transpose(x_one, 1, 2)
+        x_one = torch.cat((*args[:-1], torch.ones_like(args[0])), dim = 1)
+        x_one = torch.where((x_one[:,0] ==MagicNumber).unsqueeze(-1), torch.tensor([0.0]*x_one.size()[1]), x_one)
+        x_t = torch.transpose(x_one, 0, 1)
 
         left = x_t @ x_one @ self.result - x_t @ y
         right = self.error*x_t @ y

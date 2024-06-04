@@ -319,15 +319,15 @@ def _export_onnx(model: Type[IModel], data_tensor_array: list[torch.Tensor], mod
   # Flips the neural net into inference mode
   circuit.eval()
   input_names = []
-  dynamic_axes = {}
+  # dynamic_axes = {}
 
   data_tensor_tuple = ()
   for i in range(len(data_tensor_array)):
     data_tensor_tuple += (data_tensor_array[i],)
     input_index = "input"+str(i+1)
     input_names.append(input_index)
-    dynamic_axes[input_index] = {0 : 'batch_size'}
-  dynamic_axes["output"] = {0 : 'batch_size'}
+  #   dynamic_axes[input_index] = {0 : 'batch_size'}
+  # dynamic_axes["output"] = {0 : 'batch_size'}
 
   # Export the model
   torch.onnx.export(circuit,               # model being run
@@ -338,7 +338,8 @@ def _export_onnx(model: Type[IModel], data_tensor_array: list[torch.Tensor], mod
                       do_constant_folding=True,  # whether to execute constant folding for optimization
                       input_names = input_names,   # the model's input names
                       output_names = ['output'], # the model's output names
-                      dynamic_axes=dynamic_axes)
+                      # dynamic_axes=dynamic_axes
+                      )
 
 
 # mode is either "accuracy" or "resources"
@@ -436,7 +437,7 @@ def _process_data(
     for col in col_array:
       data = data_onefile[col]
       data_tensor = torch.tensor(data, dtype = torch.float32)
-      data_tensor_array.append(torch.reshape(data_tensor, (1,-1,1)))
+      data_tensor_array.append(torch.reshape(data_tensor, (-1,1)))
       sel_data.append(data)
     # Serialize data into file:
     # sel_data comes from `data`
