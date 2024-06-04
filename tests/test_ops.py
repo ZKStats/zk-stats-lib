@@ -51,10 +51,10 @@ def test_linear_regression(tmp_path, column_0: torch.Tensor, column_1: torch.Ten
     expected_res = statistics.linear_regression(column_0.tolist(), column_1.tolist())
     columns = [column_0, column_1]
     regression = Regression.create(columns, error)
-    # shape = [1, 2, 1]
+    # shape = [2, 1]
     actual_res = regression.result
-    assert_result(expected_res.slope, actual_res[0][0][0])
-    assert_result(expected_res.intercept, actual_res[0][1][0])
+    assert_result(expected_res.slope, actual_res[0][0])
+    assert_result(expected_res.intercept, actual_res[1][0])
     class Model(IModel):
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             return regression.ezkl(x), regression.result
