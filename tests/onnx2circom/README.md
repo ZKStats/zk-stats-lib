@@ -1,5 +1,30 @@
 # Steps to run
 
+## Preparation
+
+### Install Python module dependencies
+
+Install all the required Python module dependencies in the virtual environment, and activate it:
+
+```bash
+poetry install
+poetry shell
+```
+
+### Install Rust
+
+`circom-2-arithc` is written in Rust and requires the Rust compiler to build.
+
+You can install the Rust compiler using [rustup](https://rustup.rs/).
+
+### Install required toolchain and libraries for MP-SPDZ
+On macOS, installing `brew` is sufficient.
+
+For other platforms, refer to the [TL;DR (Source Distribution)](https://github.com/data61/MP-SPDZ?tab=readme-ov-file#tldr-source-distribution) section of the MP-SPDZ README file.
+
+#### Note on Ubuntu 22.04
+In addition to the libraries mentioned in the MP-SPDZ README file, `libboost-iostreams-dev` package is needed.
+
 ## Test onnx2keras
 
 Run the test:
@@ -37,8 +62,6 @@ Clone the repo
 cd ..
 git clone https://github.com/mhchia/MP-SPDZ
 cd MP-SPDZ
-git remote add kevin_mpc https://github.com/mhchia/MP-SPDZ.git
-git fetch kevin_mpc
 git checkout arith-executor
 mp_spdz_project_root=$(pwd)
 ```
@@ -46,25 +69,32 @@ mp_spdz_project_root=$(pwd)
 Build the MPC vm for `semi` protocol
 
 ```bash
+make setup
 make -j8 semi-party.x
 # Make sure `semi-party.x` exists
 ls semi-party.x
 ```
 
-### Run the test
-
-Modify the configs in `tests/onnx2circom/utils.py` to point to the correct paths. Just fill in the paths to the two projects you just cloned.
+If you're on macOS and see the following linker warning, you can safely ignore it:
 
 ```bash
-# NOTE: Change the path to your own path
-CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
-MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
+ld: warning: search path '/usr/local/opt/openssl/lib' not found
 ```
+
+### Run the test
 
 Go back to the zkstats library project root
 
 ```bash
 cd ../zk-stats-lib
+```
+
+Then modify the configs in `tests/onnx2circom/utils.py` to point to the correct paths. Just fill in the paths to the two projects you just cloned.
+
+```bash
+# NOTE: Change the path to your own path
+CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
+MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
 ```
 
 Run the test:
