@@ -164,12 +164,12 @@ def run_torch_model(model_type: Type[nn.Module], data: tuple[torch.Tensor]) -> t
 def torch_model_to_onnx(model_type: Type[nn.Module], data: tuple[torch.Tensor], output_onnx_path: Path):
   model = model_type()
   input_names = []
-  dynamic_axes = {}
+#   dynamic_axes = {}
   for i in range(len(data)):
     input_index = "input"+str(i+1)
     input_names.append(input_index)
-    dynamic_axes[input_index] = {0 : 'batch_size'}
-  dynamic_axes["output"] = {0 : 'batch_size'}
+#     dynamic_axes[input_index] = {0 : 'batch_size'}
+#   dynamic_axes["output"] = {0 : 'batch_size'}
 
   # Export the model
   torch.onnx.export(model,               # model being run
@@ -180,5 +180,6 @@ def torch_model_to_onnx(model_type: Type[nn.Module], data: tuple[torch.Tensor], 
                       do_constant_folding=True,  # whether to execute constant folding for optimization
                       input_names = input_names,   # the model's input names
                       output_names = ['output'], # the model's output names
-                      dynamic_axes=dynamic_axes)
+                    #   dynamic_axes=dynamic_axes
+                      )
 

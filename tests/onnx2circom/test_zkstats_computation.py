@@ -19,7 +19,7 @@ def test_computation(tmp_path):
     data_1 = torch.tensor(
         [32, 8, 8],
         dtype = torch.float32,
-    ).reshape(1, -1, 1)
+    ).reshape(-1, 1)
 
     state, Model = computation_to_model_mpc(computation)
 

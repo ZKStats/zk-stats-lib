@@ -29,7 +29,7 @@ def test_two_inputs(func, tmp_path):
     data = torch.tensor(
         [32, 8, 8],
         dtype = torch.float32,
-    ).reshape(1, -1, 1)
+    ).reshape(-1, 1)
     class Model(nn.Module):
         def forward(self, x):
             # x+log(x) = 32+log(32), 8+log(8), 8+log(8)
@@ -37,9 +37,9 @@ def test_two_inputs(func, tmp_path):
             return func(x)
 
     # Run the model directly with torch
-    output_torch = run_torch_model(Model, data)
+    output_torch = run_torch_model(Model, tuple([data]))
     # Compile and run the model with MP-SPDZ
-    outputs_mpspdz = compile_and_run_mpspdz(Model, data, tmp_path)
+    outputs_mpspdz = compile_and_run_mpspdz(Model, tuple([data]), tmp_path)
     # The model only has one output tensor
     assert len(outputs_mpspdz) == 1, f"Expecting only one output tensor, but got {len(outputs_mpspdz)} tensors."
     # Compare the output tensor with the expected output. Different should be within 0.001
@@ -54,18 +54,6 @@ def test_two_inputs(func, tmp_path):
 #     return torch.log(x) / torch.log(torch.tensor(float(base)))
 
 
-# @pytest.mark.parametrize(
-#     "func",
-#     [
-#         # pytest.param(lambda x, base: x + log(x, base), id="x + log(x)"),
-#         # pytest.param(lambda x, base: log(x, base) + x, id="log(x) + x"),
-#         # pytest.param(lambda x, base: x - log(x, base), id="x - log(x)"),
-#         # pytest.param(lambda x, base: log(x, base) - x, id="log(x) - x"),
-#         # pytest.param(lambda x, base: torch.mean(x) + log(x, base), id="mean(x) + log(x)"),
-#         # pytest.param(lambda x, base: log(x, base) + torch.mean(x), id="log(x) + mean(x)"),
-#         # pytest.param(lambda x, base: torch.mean(x) - log(x, base), id="mean(x) - log(x)"),
-#     ]
-# )
 
 # FIXME: Now our circom interprets torch.log as base 2, while torch interprets as base e, to make things coherent, we enforce 
     # func_torch to be torch.log2. We can use log base e in circom once we support scaling.
@@ -85,13 +73,13 @@ def test_two_inputs_with_logs(func_mpspdz,func_torch, tmp_path):
     data = torch.tensor(
         [32, 8, 8],
         dtype = torch.float32,
-    ).reshape(1, -1, 1)
+    ).reshape(-1, 1)
 
     class ModelMPSPDZ(nn.Module):
         def forward(self, x):
             return func_mpspdz(x)
 
-    outputs_tensor_mpsdpz = compile_and_run_mpspdz(ModelMPSPDZ, data, tmp_path)
+    outputs_tensor_mpsdpz = compile_and_run_mpspdz(ModelMPSPDZ, tuple([data]), tmp_path)
     # The model only has one output tensor
     assert len(outputs_tensor_mpsdpz) == 1, f"Expecting only one output tensor, but got {len(outputs_tensor_mpsdpz)} tensors."
     output_mpspdz = outputs_tensor_mpsdpz[0]
@@ -100,7 +88,7 @@ def test_two_inputs_with_logs(func_mpspdz,func_torch, tmp_path):
         def forward(self, x):
             return func_torch(x)
 
-    output_torch = run_torch_model(ModelTorch, data)
+    output_torch = run_torch_model(ModelTorch, tuple([data]))
     assert output_mpspdz.shape == output_torch.shape, f"Output tensor shape is not the same. {output_mpspdz.shape=}, {output_torch.shape=}"
     # Compare the output tensor with the expected output.
     # Difference should be within 20% (|output_tensor_mpsdpz-output_torch|/|output_torch| <= error_rate)
