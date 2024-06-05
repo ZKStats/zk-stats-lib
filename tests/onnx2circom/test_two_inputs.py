@@ -37,9 +37,9 @@ def test_two_inputs(func, tmp_path):
             return func(x)
 
     # Run the model directly with torch
-    output_torch = run_torch_model(Model, (data,))
+    output_torch = run_torch_model(Model, tuple([data]))
     # Compile and run the model with MP-SPDZ
-    outputs_mpspdz = compile_and_run_mpspdz(Model, (data,), tmp_path)
+    outputs_mpspdz = compile_and_run_mpspdz(Model, tuple([data]), tmp_path)
     # The model only has one output tensor
     assert len(outputs_mpspdz) == 1, f"Expecting only one output tensor, but got {len(outputs_mpspdz)} tensors."
     # Compare the output tensor with the expected output. Different should be within 0.001
