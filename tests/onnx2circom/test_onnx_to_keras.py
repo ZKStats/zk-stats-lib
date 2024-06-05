@@ -48,7 +48,7 @@ def test_onnx_to_keras(tmp_path, model_type: Type[nn.Module], expected_res: floa
     data = torch.tensor(
         [10, 40, 50],
         dtype = torch.float32,
-    ).reshape(1, -1, 1)
+    ).reshape( -1,1)
 
     res = convert_run_check(model_type, data, tmp_path)
     assert torch.allclose(res, expected_res, atol=1e-6), f"Expected result: {expected_res}, but got {res}"
@@ -60,10 +60,10 @@ def convert_run_check(model_type: Type[nn.Module], data: torch.Tensor, tmp_path:
     keras_path = onnx_path.parent / f"{model_name}.keras"
     assert onnx_path.stem == keras_path.stem
 
-    output_torch = run_torch_model(model_type, data)
+    output_torch = run_torch_model(model_type, tuple([data]))
 
     print("Transforming torch model to onnx...")
-    torch_model_to_onnx(model_type, data, onnx_path)
+    torch_model_to_onnx(model_type, tuple([data]), onnx_path)
     onnx_to_keras(onnx_path, keras_path)
 
     output_keras = run_keras_model(keras_path, data)

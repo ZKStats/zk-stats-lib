@@ -80,12 +80,12 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
     # print('\n\n\n\n\n\n inputs transpiler: ', inputs)
     # print('\n\n\n\n\n')
     input_0 = inputs[0]
-    input_0_shape = get_effective_shape(input_0.shape)
+    input_0_shape = input_0.shape
     # If the input is a scalar, num elements in the input tensor is 1
     if len(input_0_shape) == 0:
         num_elements_in_input_0 = 1
     # Else, the number of elements in the input tensor is the first dimension
-    # E.g. input_0.shape = (1, 2, 1), input_0_shape=(2, 1), num_elements_in_input_0=2
+    # E.g. input_0.shape = (2, 1), input_0_shape=(2, 1), num_elements_in_input_0=2
     else:
         num_elements_in_input_0 = input_0_shape[0]
 
@@ -101,7 +101,7 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
     # 2 inputs operations
     if is_in_ops(layer.op, [TFAdd, TFSub, TFMul, TFDiv, TFEqual, TFGreater, TFLess, TFAnd, TFOr]):
         input_1 = inputs[1]
-        input_1_shape = get_effective_shape(input_1.shape)
+        input_1_shape = input_1.shape
         if len(input_1_shape) == 0:
             num_elements_in_input_1 = 1
         else:
@@ -125,11 +125,11 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
     model = Model(filename, SUPPORTED_OPS, SKIPPED_OPS)
 
     model_input_name_to_shape = {
-        model_input.name: get_effective_shape(model_input.shape)
+        model_input.name: model_input.shape
         for model_input in model.model_inputs
     }
     model_output_name_to_shape = {
-        model_output.name: get_effective_shape(model_output.shape)
+        model_output.name: model_output.shape
         for model_output in model.model_outputs
     }
     circom_input_names = [input.name for input in model.model_inputs]
@@ -296,10 +296,6 @@ def parse_args(template_args: typing.List[str], args: typing.Dict[str, typing.An
     return args_str.format(**args)
 
 
-def get_effective_shape(shape: tuple[int, ...]) -> tuple[int, ...]:
-    # remove the first dimension. E.g. (1, 2, 1) -> (2, 1)
-    return shape[1:]
-
 def tensor_shape_to_circom_array(shape: list[int]):
     return ''.join([f"[{dim}]" for dim in shape])
 
@@ -325,8 +321,7 @@ def generate_constraints(lhs: str, lhs_dim: int, rhs: str, rhs_dim: int, tensor_
     ]
     ```
     """
-    # (1, 2, 1) -> (2, 1)
-    effective_shape = get_effective_shape(tensor_shape)
+    effective_shape = tensor_shape
     for_loop_statements = [
         f"{INDENTATION * i}for (var i{i} = 0; i{i} < {dim}; i{i}++) {{"
         for i, dim in enumerate(effective_shape)
