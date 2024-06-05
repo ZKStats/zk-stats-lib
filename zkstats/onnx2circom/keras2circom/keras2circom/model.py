@@ -66,20 +66,20 @@ class Layer:
                 # if it's keras tensor resulting in constant, get the shape from non-constant input
                 if input_shape == ():
                     # if there are more than 1 inputs like `TFAdd`, we need to get the shape of the other input
-                    if len(_inputs)==2 and len(_inputs[1-index].shape)>=2:
-                        input_shape = (_inputs[1-index]).shape[:-1]
+                    if len(_inputs)==2 and len(_inputs[1-index].shape)>=1:
+                        input_shape = (_inputs[1-index]).shape
                     else:
-                        input_shape =(1,1)
+                        input_shape =(1,)
                     is_keras_constant = True
                 index += 1
             # it's constant. assume it's a float
             else:
                 name = None
                 value = float(config_ele)
-                if len(_inputs)>0 and len(_inputs[0].shape)>=2:
-                    input_shape = (_inputs[0]).shape[:-1]
+                if len(_inputs)>0 and len(_inputs[0].shape)>=1:
+                    input_shape = (_inputs[0]).shape
                 else:
-                    input_shape =(1,1)
+                    input_shape =(1,)
                 
             self.inputs.append(
                 Input(
@@ -121,8 +121,8 @@ class Model:
                 if output.name in self.map_output_to_component:
                     raise ValueError(f"Output name {output.name} is already used by another layer.")
                 self.map_output_to_component[output.name] = layer
-        print('\n\n\n\n\n MPAPPPA: ', self.map_output_to_component.keys())
-        print('\n\n\n\n\n\n')
+        # print('\n\n\n\n\n MPAPPPA: ', self.map_output_to_component.keys())
+        # print('\n\n\n\n\n\n')
     def get_component_from_output_name(self, output_name: str) -> typing.Optional[Layer]:
         try:
             return self.map_output_to_component[output_name]
