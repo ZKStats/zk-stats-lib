@@ -139,6 +139,34 @@ template TFReduceSum(nInputs) {
     out <== sum_till[nInputs-1] + 0;
 }
 
+template TFReduceMax(nInputs) {
+    signal input in[nInputs];
+    signal output out;
+
+    signal max_till[nInputs];
+    max_till[0] <== in[0];
+    for (var i = 0; i<nInputs-1; i++){
+        max_till[i+1] <== max_till[i] + (in[i+1]-max_till[i])*(in[i+1]>max_till[i]);
+    }
+    // FIXME: adding 0 is a workaround for nInputs=1, to force `in[0][0]` to be an
+    // input in a gate
+    out <== max_till[nInputs-1] + 0;
+}
+
+template TFReduceMin(nInputs) {
+    signal input in[nInputs];
+    signal output out;
+
+    signal min_till[nInputs];
+    min_till[0] <== in[0];
+    for (var i = 0; i<nInputs-1; i++){
+        min_till[i+1] <== min_till[i] + (in[i+1]-min_till[i])*(in[i+1]<min_till[i]);
+    }
+    // FIXME: adding 0 is a workaround for nInputs=1, to force `in[0][0]` to be an
+    // input in a gate
+    out <== min_till[nInputs-1] + 0;
+}
+
 template TFReduceMean(nInputs) {
     signal input in[nInputs];
     signal output out;
@@ -238,5 +266,32 @@ template TFLog(e, nInputs) {
         taylor_series_sum[input_index] <== taylor_series_sum_comp[input_index].out;
 
         out[input_index] <== taylor_series_sum[input_index] + k[input_index];
+    }
+}
+
+template TFGather(nElements) {
+    signal input in[nElements];
+    signal input index;
+    signal output out;
+    signal out_till[nElements+1];
+
+    out_till[0] <== 0;
+    for (var i = 0; i< nElements; i++){
+        out_till[i+1] <== out_till[i] + (index==i)*in[i];
+    }
+
+    out <== out_till[nElements];
+    
+}
+
+template TFConcat(nElements_0, nElements_1){
+    signal input in_0[nElements_0];
+    signal input in_1[nElements_1];
+    signal output out[nElements_0+nElements_1];
+    for (var i = 0; i< nElements_0; i++){
+        out[i] <== in_0[i]+0;
+    }
+    for (var i = 0; i< nElements_1; i++){
+        out[nElements_0+i] <== in_1[i]+0;
     }
 }

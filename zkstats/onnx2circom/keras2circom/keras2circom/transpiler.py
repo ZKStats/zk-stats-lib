@@ -29,6 +29,8 @@ from zkstats.onnx2circom.onnx2keras.layers import (
     TFOr,
     TFWhere,
     TFAbs,
+    TFGather, 
+    TFConcat
     # TFArgMax,
     # TFArgMin,
 )
@@ -63,6 +65,8 @@ SUPPORTED_OPS = [
     TFCast,
     TFWhere,
     TFAbs,
+    TFGather, 
+    TFConcat
     # TFErf,
 ]
 
@@ -94,11 +98,11 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
 
     if is_in_ops(layer.op, [TFLog]):
         return {'e': 2, 'nInputs': num_elements_in_input_0}
-    if is_in_ops(layer.op, [TFReduceSum, TFReduceMean]):
+    if is_in_ops(layer.op, [TFReduceSum, TFReduceMean, TFReduceMax, TFReduceMin]):
         return {'nInputs': num_elements_in_input_0}
-    if is_in_ops(layer.op, [TFNot, TFCast, TFWhere, TFAbs]):
+    if is_in_ops(layer.op, [TFNot, TFCast, TFWhere, TFAbs, TFGather]):
         return {'nElements': num_elements_in_input_0}
-    # 2 inputs operations
+    # 2 inputs operations 
     if is_in_ops(layer.op, [TFAdd, TFSub, TFMul, TFDiv, TFEqual, TFGreater, TFLess, TFAnd, TFOr]):
         input_1 = inputs[1]
         input_1_shape = input_1.shape
@@ -107,6 +111,15 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
         else:
             num_elements_in_input_1 = input_1_shape[0]
         return {'nElements': max(num_elements_in_input_0, num_elements_in_input_1)}
+    # we make concat only with 2 inputs
+    if is_in_ops(layer.op, [TFConcat]):
+        input_1 = inputs[1]
+        input_1_shape = input_1.shape
+        if len(input_1_shape) == 0:
+            num_elements_in_input_1 = 1
+        else:
+            num_elements_in_input_1 = input_1_shape[0]
+        return {'nElements_0':num_elements_in_input_0, 'nElements_1': num_elements_in_input_1}
     return {}
 
 
@@ -248,7 +261,7 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
         rhs_dim = from_component_template.output_dims[from_component_output_index]
         # when it's scalar
         if output.shape ==():
-            output.shape = (1,1)
+            output.shape = (1,)
             is_keras_constant = True
         constraints_lines = generate_constraints(lhs, lhs_dim, rhs, rhs_dim, output.shape, is_keras_constant)
         # print('output conssss: ', constraints_lines)
