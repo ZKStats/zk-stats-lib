@@ -22,9 +22,6 @@ On macOS, installing `brew` is sufficient.
 
 For other platforms, refer to the [TL;DR (Source Distribution)](https://github.com/data61/MP-SPDZ?tab=readme-ov-file#tldr-source-distribution) section of the MP-SPDZ README file.
 
-#### Note on Ubuntu 22.04
-In addition to the libraries mentioned in the MP-SPDZ README file, `libboost-iostreams-dev` package is needed.
-
 ## Test onnx2keras
 
 Run the test:
