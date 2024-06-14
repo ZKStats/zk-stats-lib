@@ -12,12 +12,12 @@ from zkstats.arithc_to_bristol import parse_arithc_json
 from zkstats.backends.mpspdz import generate_mpspdz_circuit, generate_mpspdz_inputs_for_party, run_mpspdz_circuit, tensors_to_circom_mpspdz_inputs
 
 
-CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/path/to/circom-2-arithc-project-root')
-MP_SPDZ_PROJECT_ROOT = Path('/path/to/mp-spdz-project-root')
+CIRCOM_2_ARITHC_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/circom-2-arithc')
+MP_SPDZ_PROJECT_ROOT = Path('/Users/mhchia/projects/work/pse/MP-SPDZ')
 
 #  For generalized multiple tensor input
 
-def compile_and_run_mpspdz(model_type: Type[nn.Module], data: tuple[torch.Tensor], tmp_path: Path):
+def compile_and_run_mpspdz(model_type: Type[nn.Module], data: tuple[torch.Tensor, ...], tmp_path: Path):
     # output_path = tmp_path
     # Don't use tmp_path for now for easier debugging
     # So you should see all generated files in `output_path`
@@ -161,7 +161,7 @@ def run_torch_model(model_type: Type[nn.Module], data: tuple[torch.Tensor]) -> t
         return output_torch.reshape(-1)
 
 
-def torch_model_to_onnx(model_type: Type[nn.Module], data: tuple[torch.Tensor], output_onnx_path: Path):
+def torch_model_to_onnx(model_type: Type[nn.Module], data: tuple[torch.Tensor, ...], output_onnx_path: Path):
   model = model_type()
   input_names = []
 #   dynamic_axes = {}

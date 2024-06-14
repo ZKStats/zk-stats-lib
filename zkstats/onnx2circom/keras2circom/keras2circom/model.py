@@ -5,6 +5,7 @@ import typing
 
 import numpy as np
 import keras
+import torch
 
 
 # <KerasTensor shape=(), dtype=float32, sparse=False, name=keras_tensor_10>
@@ -23,8 +24,33 @@ class Input:
     name: typing.Optional[str]
     # If it's a constant, value is the value of the constant. Else, it's None
     value: typing.Optional[float]
-    # is it keras_tensor in form of no shape i.e. shape = () 
+    # is it keras_tensor in form of no shape i.e. shape = ()
     is_keras_constant: bool
+
+
+def dict_to_tensor(data):
+    if data['class_name'] != '__numpy__':
+        raise ValueError("Unsupported class_name")
+
+    value = data['config']['value']
+    dtype = data['config']['dtype']
+
+    # Map the dtype string to a PyTorch dtype
+    dtype_map = {
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'int32': torch.int32,
+        'int64': torch.int64
+    }
+
+    if dtype not in dtype_map:
+        raise ValueError("Unsupported dtype")
+
+    tensor_dtype = dtype_map[dtype]
+
+    # Convert the list to a PyTorch tensor with the specified dtype
+    tensor = torch.tensor(value, dtype=tensor_dtype)
+    return tensor
 
 
 # read each layer in a model and convert it to a class called Layer
@@ -48,7 +74,7 @@ class Layer:
         self.config = _config
         self.inputs = []
         list_inputs = _config['node_inputs']
-        
+
 
         index = 0
         for ele_name in list_inputs:
@@ -66,21 +92,29 @@ class Layer:
                 # if it's keras tensor resulting in constant, get the shape from non-constant input
                 if input_shape == ():
                     # if there are more than 1 inputs like `TFAdd`, we need to get the shape of the other input
-                    if len(_inputs)==2 and len(_inputs[1-index].shape)>=1:
-                        input_shape = (_inputs[1-index]).shape
-                    else:
-                        input_shape =(1,)
+                    # if len(_inputs)==2 and len(_inputs[1-index].shape)>=1:
+                    #     input_shape = (_inputs[1-index]).shape
+                    # else:
+                    input_shape =(1,)
                     is_keras_constant = True
                 index += 1
-            # it's constant. assume it's a float
+            # FIXME: a constant can be a tensor with multiple dimensions, but for now we assume
+            # it's constant.
             else:
                 name = None
-                value = float(config_ele)
-                if len(_inputs)>0 and len(_inputs[0].shape)>=1:
-                    input_shape = (_inputs[0]).shape
+                # '/Constant_2_output_0': {'class_name': '__numpy__', 'config': {'value': [1.0, 0.0, 0.0], 'dtype': 'float32'}}
+                if isinstance(config_ele, dict) and config_ele["class_name"]=='__numpy__':
+                    value = config_ele['config']['value']
+                    value_in_tensor = dict_to_tensor(config_ele)
+                    input_shape = value_in_tensor.shape
+                # '/Constant_output_0': 0
                 else:
-                    input_shape =(1,)
-                
+                    value = float(config_ele)
+                    # if len(_inputs)>0 and len(_inputs[0].shape)>=1:
+                    #     input_shape = (_inputs[0]).shape
+                    # else:
+                    input_shape = (1,)
+
             self.inputs.append(
                 Input(
                     is_constant=not is_non_constant,

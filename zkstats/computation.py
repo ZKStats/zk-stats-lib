@@ -135,6 +135,19 @@ class IState(ABC):
         """
         ...
 
+    @abstractmethod
+    def join(self, columns_0: list[torch.Tensor], columns_1: list[torch.Tensor], join_index: int) -> list[torch.Tensor]:
+        """
+        Join two columns based on the join index. Two columns The behavior should conform to
+        [pandas.DataFrame.join](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.join.html) in pandas library.
+
+        :param columns_0: A list of tensors
+        :param columns_1: A list of tensors
+        :param join_index: The index to join on
+        :return: A list of tensors
+        """
+        ...
+
 
 class State(IState):
     """
@@ -201,6 +214,9 @@ class State(IState):
     # WHERE operation
     def where(self, _filter: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         return torch.where(_filter, x, x-x+MagicNumber)
+
+    def join(self, columns_0: list[torch.Tensor], columns_1: list[torch.Tensor], join_index: int) -> list[torch.Tensor]:
+        raise NotImplementedError
 
     def _call_op(self, x: list[torch.Tensor], op_type: Type[Operation]) -> Union[torch.Tensor, tuple[IsResultPrecise, torch.Tensor]]:
         if self.current_op_index is None:
@@ -413,6 +429,74 @@ class MPCState(IState):
 
     def where(self, _filter: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
+
+    def join(self, columns_0: list[torch.Tensor], columns_1: list[torch.Tensor], index_0: int, index_1: int) -> list[torch.Tensor]:
+        x_key = columns_0[index_0]
+        y_key = columns_1[index_1]
+        num_rows_x = x_key.size(0)
+        num_cols_y = len(columns_1)
+
+        # Create a tensor for each new y columns
+        new_y = [torch.where(x_key == 0, 0, 0) for _ in columns_1]
+        for i in range(num_rows_x):
+            # i = 0, one_hot = [1, 0, 0, 0]
+            # i = 1, one_hot = [0, 1, 0, 0]
+            one_hot = torch.arange(num_rows_x) == i
+            # new_y[i] = 1
+            # [1, 4] -> [0, 1]
+            mask = y_key == x_key[i]
+            # is_mask_nonzero = torch.sum(mask) != 0
+            for k in range(num_cols_y):
+                # [0, 1] * [5, 4] -> [0, 4]
+                # sum([0, 4]) -> 4
+                matched_value = torch.sum(mask * columns_1[k])
+                # [1, 0, 0, 0] * 4 -> [4, 0, 0, 0]
+                entry = one_hot * matched_value
+                new_y[k] = entry + new_y[k]
+        return list(columns_0) + [torch.where(col == 0, MagicNumber, col) for col in new_y]
+
+    # # NOTE: naive way
+    # def join(self, columns_0: list[torch.Tensor], columns_1: list[torch.Tensor], index_0: int, index_1: int) -> list[torch.Tensor]:
+    #     x_key = columns_0[index_0]
+    #     y_key = columns_1[index_1]
+    #     num_rows_x = x_key.size(0)
+    #     num_cols_y = len(columns_1)
+
+    #     # Create a tensor to hold the new y values
+    #     new_y = [torch.where(x_key, x_key, MagicNumber) for _ in columns_1]
+
+    #     for i in range(num_rows_x):
+    #         # Create a mask for matching rows
+    #         mask = y_key == x_key[i]
+    #         for k in range(num_cols_y):
+    #             new_value = torch.sum(mask * columns_1[k])
+    #             # Update new_y only where mask is not zero
+    #             is_mask_nonzero = torch.sum(mask) != 0
+    #             new_y[k][i] = torch.where(is_mask_nonzero, new_value, new_y[k][i])
+
+    #     return list(columns_0) + new_y
+
+    # # NOTE: matmul way
+    # def join(self, columns_0: list[torch.Tensor], columns_1: list[torch.Tensor], index_0: int, index_1: int) -> list[torch.Tensor]:
+    #     x_key = columns_0[index_0]
+    #     y_key = columns_1[index_1]
+    #     num_cols_y = len(columns_1)
+
+    #     # Create a tensor to hold the new y values
+    #     new_y = [torch.full_like(x_key, MagicNumber) for _ in columns_1]
+
+    #     # Expand dimensions for broadcasting
+    #     x_key_expanded = x_key.unsqueeze(1)  # Shape: [num_rows_x, 1]
+    #     y_key_expanded = y_key.unsqueeze(0)  # Shape: [1, num_rows_y]
+
+    #     # Create a match matrix where x_key == y_key
+    #     match_matrix = (x_key_expanded == y_key_expanded).float()  # Shape: [num_rows_x, num_rows_y]
+
+    #     # Compute new_y for each column in y
+    #     for k in range(num_cols_y):
+    #         matched_y = torch.matmul(match_matrix, columns_1[k].unsqueeze(1)).squeeze(1)  # Shape: [num_rows_x]
+    #         new_y[k] = torch.where(matched_y != 0, matched_y, new_y[k])
+    #     return list(columns_0) + new_y
 
 
 def computation_to_model_mpc(computation: TComputation) -> tuple[State, Type[IModel]]:

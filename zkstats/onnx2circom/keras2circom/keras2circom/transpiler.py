@@ -29,8 +29,9 @@ from zkstats.onnx2circom.onnx2keras.layers import (
     TFOr,
     TFWhere,
     TFAbs,
-    TFGather, 
-    TFConcat
+    TFGather,
+    TFConcat,
+    TFIdentity,
     # TFArgMax,
     # TFArgMin,
 )
@@ -65,8 +66,9 @@ SUPPORTED_OPS = [
     TFCast,
     TFWhere,
     TFAbs,
-    TFGather, 
-    TFConcat
+    TFGather,
+    TFConcat,
+    TFIdentity,
     # TFErf,
 ]
 
@@ -100,9 +102,9 @@ def get_component_args_values(layer: Layer) -> typing.Dict[str, typing.Any]:
         return {'e': 2, 'nInputs': num_elements_in_input_0}
     if is_in_ops(layer.op, [TFReduceSum, TFReduceMean, TFReduceMax, TFReduceMin]):
         return {'nInputs': num_elements_in_input_0}
-    if is_in_ops(layer.op, [TFNot, TFCast, TFWhere, TFAbs, TFGather]):
+    if is_in_ops(layer.op, [TFNot, TFCast, TFWhere, TFAbs, TFGather, TFIdentity]):
         return {'nElements': num_elements_in_input_0}
-    # 2 inputs operations 
+    # 2 inputs operations
     if is_in_ops(layer.op, [TFAdd, TFSub, TFMul, TFDiv, TFEqual, TFGreater, TFLess, TFAnd, TFOr]):
         input_1 = inputs[1]
         input_1_shape = input_1.shape
@@ -198,13 +200,15 @@ def transpile(templates: dict[str, Template], filename: str, output_dir: str = '
             # Handle right hand side when it's keras tensor
             input_name = _input.name
             input_shape = _input.shape
+            # This input can only be a constant, a model input, or an output from another component
             if _input.is_constant:
                 # If this input is a constant, use the value of the constant directly as the right hand side
                 from_component_name = None
+                # FIXME: if _input.value is a float, we need to scale it by 10^dec
                 # Scale the float value by 10^dec
                 scaled = int(_input.value * 10 ** dec)
                 from_component_signal_name = str(scaled)
-                rhs_dim = 0
+                rhs_dim = len(input_shape)
             elif model.is_model_input(input_name) is True:
                 # If this input is from `input_layer`, use the original tensor name for it
                 from_component_name = None

@@ -281,7 +281,7 @@ template TFGather(nElements) {
     }
 
     out <== out_till[nElements];
-    
+
 }
 
 template TFConcat(nElements_0, nElements_1){
@@ -293,5 +293,13 @@ template TFConcat(nElements_0, nElements_1){
     }
     for (var i = 0; i< nElements_1; i++){
         out[nElements_0+i] <== in_1[i]+0;
+    }
+}
+
+template TFIdentity(nElements) {
+    signal input in[nElements];
+    signal output out[nElements];
+    for (var i = 0; i<nElements; i++){
+        out[i] <== in[i] + 0;
     }
 }

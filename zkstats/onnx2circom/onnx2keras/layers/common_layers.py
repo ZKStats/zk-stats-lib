@@ -2,7 +2,7 @@ import math
 import logging
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
+import keras
 
 from ..utils.op_registry import OPERATOR
 from .dimension_utils import intfloat_to_list
@@ -171,7 +171,7 @@ class TFUpsample():
     def __call__(self, inputs):
         return tf.image.resize(inputs,  self.scale, method=self.method)
 
-    
+
 @OPERATOR.register_operator("Constant")
 class TFConstant():
     def __init__(self, tensor_grap, node_weights, node_inputs, node_attribute, *args, **kwargs):
@@ -242,12 +242,26 @@ class TFGemm():
         return self.dense(inputs)
 
 @OPERATOR.register_operator("Identity")
-class TFIdentity():
-    def __init__(self, *args, **kwargs):
+class TFIdentity(keras.layers.Layer):
+    def __init__(self,tensor_grap,  node_weights, node_inputs, node_attribute, *args, **kwargs):
         super().__init__()
+        self.tensor_grap = tensor_grap
+        self.node_weights = node_weights
+        self.node_inputs = node_inputs
+        self.node_attribute = node_attribute
 
-    def __call__(self, inputs):
-        return inputs
+    def call(self, input, *args, **kwargs):
+        return input
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "tensor_grap":self.tensor_grap,
+            'node_weights':self.node_weights,
+            'node_inputs':self.node_inputs,
+            'node_attribute':self.node_attribute,
+        })
+        return config
 
 @OPERATOR.register_operator("Dropout")
 class TFDropout():
@@ -310,14 +324,14 @@ class TFCast(keras.layers.Layer):
                 # inputs = tf.cast(inputs, dtype=self.tf_cast_map[self.cast_to])
 
         return inputs
-    
+
     def get_config(self):
         config = super().get_config()
         config.update({
             "tensor_grap":self.tensor_grap,
             'node_weights':self.node_weights,
             'node_inputs':self.node_inputs,
-            'node_attribute':self.node_attribute, 
+            'node_attribute':self.node_attribute,
             "cast_to": self.cast_to
         })
         return config
