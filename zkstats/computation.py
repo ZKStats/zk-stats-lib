@@ -248,6 +248,8 @@ class State:
             if current_op_index > len_ops - 1:
                 # Sanity check that current op index does not exceed the length of ops
                 raise Exception(f"current_op_index out of bound: {current_op_index=} > {len_ops=}")
+            if self.isProver:
+                json.dump(self.precal_witness, open(self.precal_witness_path, 'w'))
             return op.result+(x[0]-x[0])[0][0]
 
 
