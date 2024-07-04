@@ -69,12 +69,11 @@ def test_integration_select_partial_columns(tmp_path, column_0, column_1, error,
     # Select only the first column from two columns
     selected_columns = [columns[0]]
 
-    def simple_computation(state, x):
-        return state.mean(x[0])
-    precal_witness_path = tmp_path / "precal_witness_path.json"
-    _, model = computation_to_model(simple_computation,precal_witness_path, True, error)
+    def simple_computation(state, args):
+        x = args['columns_0']
+        return state.mean(x)
     # gen settings, setup, prove, verify
-    compute(tmp_path, [column_0, column_1], model, scales, selected_columns)
+    compute(tmp_path, [column_0, column_1], simple_computation, scales, selected_columns)
 
 
 def test_csv_data(tmp_path, column_0, column_1, error, scales):
@@ -85,8 +84,9 @@ def test_csv_data(tmp_path, column_0, column_1, error, scales):
 
     selected_columns = list(data_json.keys())
 
-    def simple_computation(state, x):
-        return state.mean(x[0])
+    def simple_computation(state, args):
+        x = args['columns_0']
+        return state.mean(x)
 
     sel_data_path = tmp_path / "comb_data.json"
     model_path = tmp_path / "model.onnx"
@@ -98,7 +98,7 @@ def test_csv_data(tmp_path, column_0, column_1, error, scales):
     generate_data_commitment(data_csv_path, scales, data_commitment_path)
 
     # Test: `prover_gen_settings` works with csv
-    _, model_for_proving = computation_to_model(simple_computation, precal_witness_path, True,error)
+    _, model_for_proving = computation_to_model(simple_computation, precal_witness_path, True, selected_columns, error)
     prover_gen_settings(
         data_path=data_csv_path,
         selected_columns=selected_columns,
@@ -112,7 +112,7 @@ def test_csv_data(tmp_path, column_0, column_1, error, scales):
 
     # Test: `prover_gen_settings` works with csv
     # Instantiate the model for verification since the state of `model_for_proving` is changed after `prover_gen_settings`
-    _, model_for_verification = computation_to_model(simple_computation, precal_witness_path, False,error)
+    _, model_for_verification = computation_to_model(simple_computation, precal_witness_path, False, selected_columns, error)
     verifier_define_calculation(data_csv_path, selected_columns, str(sel_data_path), model_for_verification, str(model_path))
 
 def json_file_to_csv(data_json_path, data_csv_path):

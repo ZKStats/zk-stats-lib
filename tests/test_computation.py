@@ -4,7 +4,7 @@ import torch
 
 import pytest
 
-from zkstats.computation import State, computation_to_model
+from zkstats.computation import State, Args, computation_to_model
 from zkstats.ops import (
     Mean,
     Median,
@@ -24,10 +24,10 @@ from zkstats.ops import (
 from .helpers import assert_result, compute, ERROR_CIRCUIT_DEFAULT, ERROR_CIRCUIT_STRICT, ERROR_CIRCUIT_RELAXED
 
 
-def nested_computation(state: State, args: list[torch.Tensor]):
-    x = args[0]
-    y = args[1]
-    z = args[2]
+def nested_computation(state: State, args: Args):
+    x = args['columns_0']
+    y = args['columns_1']
+    z = args['columns_2']
     out_0 = state.median(x)
     out_1 = state.geometric_mean(y)
     out_2 = state.harmonic_mean(x)
@@ -63,12 +63,8 @@ def nested_computation(state: State, args: list[torch.Tensor]):
     [ERROR_CIRCUIT_DEFAULT],
 )
 def test_nested_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, column_2: torch.Tensor, error, scales):
-    precal_witness_path = tmp_path / "precal_witness_path.json"
-    state, model = computation_to_model(nested_computation, precal_witness_path,True, error)
     x, y, z = column_0, column_1, column_2
-    compute(tmp_path, [x, y, z], model, scales)
-    # There are 11 ops in the computation
-
+    state = compute(tmp_path, [x, y, z], nested_computation, scales)
     assert state.current_op_index == 12
 
     ops = state.ops
@@ -156,12 +152,10 @@ def test_computation_with_where_1d(tmp_path, error, column_0, op_type: Callable[
     def condition(_x: torch.Tensor):
         return _x < 4
 
-    def where_and_op(state: State, args: list[torch.Tensor]):
-        x = args[0]
+    def where_and_op(state: State, args: Args):
+        x = args['columns_0']
         return op_type(state, state.where(condition(x), x))
-    precal_witness_path = tmp_path / "precal_witness_path.json"
-    state, model = computation_to_model(where_and_op, precal_witness_path,True,  error)
-    compute(tmp_path, [column], model, scales)
+    state = compute(tmp_path, [column], where_and_op, scales)
 
     res_op = state.ops[-1]
     filtered = column[condition(column)]
@@ -180,16 +174,14 @@ def test_computation_with_where_2d(tmp_path, error, column_0, column_1, op_type:
     def condition_0(_x: torch.Tensor):
         return _x > 4
 
-    def where_and_op(state: State, args: list[torch.Tensor]):
-        x = args[0]
-        y = args[1]
+    def where_and_op(state: State, args: Args):
+        x = args['columns_0']
+        y = args['columns_1']
         condition_x = condition_0(x)
         filtered_x = state.where(condition_x, x)
         filtered_y = state.where(condition_x, y)
         return op_type(state, filtered_x, filtered_y)
-    precal_witness_path = tmp_path / "precal_witness_path.json"
-    state, model = computation_to_model(where_and_op, precal_witness_path, True ,error)
-    compute(tmp_path, [column_0, column_1], model, scales)
+    state = compute(tmp_path, [column_0, column_1], where_and_op, scales)
 
     res_op = state.ops[-1]
     condition_x = condition_0(column_0)

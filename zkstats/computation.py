@@ -270,8 +270,24 @@ class IModel(nn.Module):
 #     return state.mean(torch.tensor([out_0, out_1]).reshape(1,-1,1))
 TComputation = Callable[[State, list[torch.Tensor]], torch.Tensor]
 
+class Args:
+    def __init__(
+        self,
+        columns: list[str],
+        data: list[torch.Tensor],
+    ):
+        if len(columns) != len(data):
+            raise ValueError("columns and data must have the same length")
+        self.data_dict = {
+            column_name: d
+            for column_name, d in zip(columns, data)
+        }
 
-def computation_to_model(computation: TComputation, precal_witness_path:str, isProver:bool ,error: float = DEFAULT_ERROR ) -> tuple[State, Type[IModel]]:
+    def __getitem__(self, key: str) -> torch.Tensor:
+        return self.data_dict[key]
+
+
+def computation_to_model(computation: TComputation, precal_witness_path: str, isProver:bool, selected_columns: list[str], error: float = DEFAULT_ERROR ) -> tuple[State, Type[IModel]]:
     """
     Create a torch model from a `computation` function defined by user
     :param computation: A function that takes a State and a list of torch.Tensor, and returns a torch.Tensor
@@ -281,7 +297,7 @@ def computation_to_model(computation: TComputation, precal_witness_path:str, isP
     """
     state = State(error)
 
-    state.precal_witness_path= precal_witness_path
+    state.precal_witness_path = precal_witness_path
     state.isProver = isProver
 
     class Model(IModel):
@@ -291,14 +307,16 @@ def computation_to_model(computation: TComputation, precal_witness_path:str, isP
             """
             # In the preprocess step, the operations are calculated and the results are stored in the state.
             # So we don't need to get the returned result
-            computation(state, x)
+            args = Args(selected_columns, x)
+            computation(state, args)
             state.set_ready_for_exporting_onnx()
 
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             """
             Called by torch.onnx.export.
             """
-            result = computation(state, x)
+            args = Args(selected_columns, x)
+            result = computation(state, args)
             is_computation_result_accurate = state.bools[0]()
             for op_precise_check in state.bools[1:]:
                 is_op_result_accurate = op_precise_check()

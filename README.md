@@ -50,11 +50,11 @@ def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
 For example, we have two columns of data and we want to compute the mean of the medians of the two columns:
 
 ```python
-def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
+def user_computation(s: State, data: Args) -> torch.Tensor:
     # Compute the median of the first column
-    median1 = s.median(data[0])
+    median1 = s.median(data['column1'])
     # Compute the median of the second column
-    median2 = s.median(data[1])
+    median2 = s.median(data['column2'])
     # Compute the mean of the medians
     return s.mean(torch.cat((median1.unsqueeze(0), median2.unsqueeze(0))).reshape(1,-1,1))
 ```
@@ -74,9 +74,9 @@ TODO: We should have a list for all supported PyTorch functions.
 Although we cannot filter data into any arbitrary shape using just condition + index (e.g. `X[X > 0]`), we implemented State.where operation that allows users to filter data by their own choice of condition as follows.
 
 ```python
-def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
+def user_computation(s: State, data: Args) -> torch.Tensor:
     # Compute the mean of the absolute values
-    x = data[0]
+    x = data['x']
     # Here condition can be chained as shown below, and can have many variables if we have more than just x: e.g. filter = torch.logical_and(x>20, y<2) in case of regression for example.
     filter  = torch.logical_and(x > 20, x<50)
     # call our where function
@@ -116,9 +116,9 @@ Note here, that we can also just let prover generate model, and then send that m
 ```python
 from zkstats.core import computation_to_model
 # For prover: generate prover_model, and write to precal_witness file
-_, prover_model = computation_to_model(user_computation, precal_witness_path, True, error)
+_, prover_model = computation_to_model(user_computation, precal_witness_path, True, selected_columns, error)
 # For verifier, generate verifier model (which is same as prover_model) by reading precal_witness file
-_, verifier_model = computation_to_model(user_computation, precal_witness_path, False, error)
+_, verifier_model = computation_to_model(user_computation, precal_witness_path, False, selected_columns, error)
 ```
 
 #### Data Provider: generate settings

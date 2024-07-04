@@ -4,8 +4,8 @@ from pathlib import Path
 
 import torch
 
-from zkstats.core import create_dummy,prover_gen_settings, setup, prover_gen_proof, verifier_verify, generate_data_commitment, verifier_define_calculation
-from zkstats.computation import IModel, State, computation_to_model
+from zkstats.core import prover_gen_settings, setup, prover_gen_proof, verifier_verify, generate_data_commitment, verifier_define_calculation
+from zkstats.computation import computation_to_model, TComputation, State, IModel
 
 
 DEFAULT_POSSIBLE_SCALES = list(range(20))
@@ -27,16 +27,15 @@ def data_to_json_file(data_path: Path, data: list[torch.Tensor]) -> dict[str, li
         json.dump(column_to_data, f)
     return column_to_data
 
-TComputation = Callable[[State, list[torch.Tensor]], torch.Tensor]
-def compute(
+
+
+def compute_model(
     basepath: Path,
     data: list[torch.Tensor],
-    model: Type[IModel],
-    # computation: TComputation,
+    model: IModel,
     scales_params: Optional[Sequence[int]] = None,
     selected_columns_params: Optional[list[str]] = None,
-    # error:float = 1.0
-) -> None:
+):
     sel_data_path = basepath / "comb_data.json"
     model_path = basepath / "model.onnx"
     settings_path = basepath / "settings.json"
@@ -65,12 +64,12 @@ def compute(
         scales_for_commitments = scales_params
     # create_dummy((data_path), (dummy_data_path))
     generate_data_commitment((data_path), scales_for_commitments, (data_commitment_path))
-    # _, prover_model = computation_to_model(computation, (precal_witness_path), True, error)
+    # _, prover_model = computation_to_model(computation, (precal_witness_path), True, selected_columns, error)
 
     prover_gen_settings((data_path), selected_columns, (sel_data_path), model, (model_path), scales, "resources", (settings_path))
 
     # No need, since verifier & prover share the same onnx
-    # _, verifier_model = computation_to_model(computation, (precal_witness_path), False,error)
+    # _, verifier_model = computation_to_model(computation, (precal_witness_path), False, selected_columns, error)
     # verifier_define_calculation((dummy_data_path), selected_columns, (sel_dummy_data_path),verifier_model, (verifier_model_path))
 
     setup((model_path), (compiled_model_path), (settings_path),(vk_path), (pk_path ))
@@ -78,6 +77,29 @@ def compute(
     prover_gen_proof((model_path), (sel_data_path), (witness_path), (compiled_model_path), (settings_path), (proof_path), (pk_path))
     # print('slett col: ', selected_columns)
     verifier_verify((proof_path), (settings_path), (vk_path), selected_columns, (data_commitment_path))
+
+
+def compute(
+    basepath: Path,
+    data: list[torch.Tensor],
+    computation: TComputation,
+    scales_params: Optional[Sequence[int]] = None,
+    selected_columns_params: Optional[list[str]] = None,
+) -> State:
+    data_path = basepath / "data.json"
+    precal_witness_path = basepath / "precal_witness_path.json"
+
+    column_to_data = data_to_json_file(data_path, data)
+    # If selected_columns_params is None, select all columns
+    if selected_columns_params is None:
+        selected_columns = list(column_to_data.keys())
+    else:
+        selected_columns = selected_columns_params
+
+    state, model = computation_to_model(computation, precal_witness_path, True, selected_columns, selected_columns)
+    compute_model(basepath, data, model, scales_params, selected_columns_params)
+    return state
+
 
 
 # Error tolerance between zkstats python implementation and python statistics module
