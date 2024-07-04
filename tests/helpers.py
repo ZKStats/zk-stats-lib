@@ -96,7 +96,7 @@ def compute(
     else:
         selected_columns = selected_columns_params
 
-    state, model = computation_to_model(computation, precal_witness_path, True, selected_columns, selected_columns)
+    state, model = computation_to_model(computation, precal_witness_path, True, selected_columns)
     compute_model(basepath, data, model, scales_params, selected_columns_params)
     return state
 
