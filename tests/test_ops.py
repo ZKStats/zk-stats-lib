@@ -7,7 +7,7 @@ import torch
 from zkstats.ops import Mean, Median, GeometricMean, HarmonicMean, Mode, PStdev, PVariance, Stdev, Variance, Covariance, Correlation, Operation, Regression
 from zkstats.computation import IModel, IsResultPrecise, State, computation_to_model
 
-from .helpers import compute, assert_result, ERROR_CIRCUIT_DEFAULT, ERROR_CIRCUIT_STRICT, ERROR_CIRCUIT_RELAXED
+from .helpers import compute_model, assert_result, ERROR_CIRCUIT_DEFAULT, ERROR_CIRCUIT_STRICT, ERROR_CIRCUIT_RELAXED
 
 
 @pytest.mark.parametrize(
@@ -58,7 +58,7 @@ def test_linear_regression(tmp_path, column_0: torch.Tensor, column_1: torch.Ten
     class Model(IModel):
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             return regression.ezkl(x), regression.result
-    compute(tmp_path, columns, Model, scales)
+    compute_model(tmp_path, columns, Model, scales)
 
 
 
@@ -70,4 +70,4 @@ def run_test_ops(tmp_path, op_type: Type[Operation], expected_func: Callable[[li
     class Model(IModel):
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             return op.ezkl(x), op.result
-    compute(tmp_path, columns, Model, scales)
+    compute_model(tmp_path, columns, Model, scales)
