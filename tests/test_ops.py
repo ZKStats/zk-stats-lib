@@ -5,9 +5,9 @@ import pytest
 
 import torch
 from zkstats.ops import Mean, Median, GeometricMean, HarmonicMean, Mode, PStdev, PVariance, Stdev, Variance, Covariance, Correlation, Operation, Regression
-from zkstats.computation import IModel, IsResultPrecise, State, computation_to_model
+from zkstats.computation import IModel, IsResultPrecise
 
-from .helpers import compute_model, assert_result, ERROR_CIRCUIT_DEFAULT, ERROR_CIRCUIT_STRICT, ERROR_CIRCUIT_RELAXED
+from .helpers import compute, assert_result, ERROR_CIRCUIT_DEFAULT, ERROR_CIRCUIT_STRICT, ERROR_CIRCUIT_RELAXED
 
 
 @pytest.mark.parametrize(
@@ -49,8 +49,8 @@ def test_ops_2_parameters(tmp_path, column_0: torch.Tensor, column_1: torch.Tens
 )
 def test_linear_regression(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, error: float, scales: list[float]):
     expected_res = statistics.linear_regression(column_0.tolist(), column_1.tolist())
-    columns = [column_0, column_1]
-    regression = Regression.create(columns, error)
+    columns = {"columns_0": column_0, "columns_1": column_1}
+    regression = Regression.create(list(columns.values()), error)
     # shape = [2, 1]
     actual_res = regression.result
     assert_result(expected_res.slope, actual_res[0][0])
@@ -58,8 +58,7 @@ def test_linear_regression(tmp_path, column_0: torch.Tensor, column_1: torch.Ten
     class Model(IModel):
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             return regression.ezkl(x), regression.result
-    compute_model(tmp_path, columns, Model, scales)
-
+    compute(tmp_path, columns, Model, scales)
 
 
 def run_test_ops(tmp_path, op_type: Type[Operation], expected_func: Callable[[list[float]], float], error: float, scales: list[float], columns: list[torch.Tensor]):
@@ -70,4 +69,5 @@ def run_test_ops(tmp_path, op_type: Type[Operation], expected_func: Callable[[li
     class Model(IModel):
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
             return op.ezkl(x), op.result
-    compute_model(tmp_path, columns, Model, scales)
+    data = {f"columns_{i}": column for i, column in enumerate(columns)}
+    compute(tmp_path, data, Model, scales)

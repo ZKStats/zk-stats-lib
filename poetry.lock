@@ -2014,4 +2014,8 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
+<<<<<<< Updated upstream
 content-hash = "3b9e31329875d4c44356a5b2ec0c2d5b95b82b31d99a91e70054cc7728266e52"
+=======
+content-hash = "d110ae744ffbe6fa855ed3d352e0da87f4fcd306245ea27189b86417f3b32f26"
+>>>>>>> Stashed changes

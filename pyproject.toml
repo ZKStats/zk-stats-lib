@@ -15,6 +15,7 @@ matplotlib = "^3.8.2"
 statistics = "^1.0.3"
 onnx = "^1.15.0"
 click = "^8.1.7"
+six = "^1.16.0"
 
 [tool.poetry.dev-dependencies]
 ipykernel = "^6.27.1"

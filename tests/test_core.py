@@ -16,7 +16,8 @@ def test_get_data_commitment_maps(tmp_path, column_0, column_1, scales):
     #     "columns_0": [1, 2, 3, 4, 5],
     #     "columns_1": [6, 7, 8, 9, 10],
     # }
-    data_json = data_to_json_file(data_path, [column_0, column_1])
+    data_json = {"columns_0": column_0, "columns_1": column_1}
+    data_to_json_file(data_path, data_json)
     # data_commitment is a mapping[scale -> mapping[column_name, commitment_hex]]
     # {
     #     scale_0: {
@@ -51,7 +52,8 @@ def test_get_data_commitment_maps_hardcoded(tmp_path):
     data_commitment_path = tmp_path / "commitments.json"
     column_0 = torch.tensor([3.0, 4.5, 1.0, 2.0, 7.5, 6.4, 5.5])
     column_1 = torch.tensor([2.7, 3.3, 1.1, 2.2, 3.8, 8.2, 4.4])
-    data_to_json_file(data_path, [column_0, column_1])
+    data_json = {"columns_0": column_0, "columns_1": column_1}
+    data_to_json_file(data_path, data_json)
     scales = [2, 3]
     generate_data_commitment(data_path, scales, data_commitment_path)
     with open(data_commitment_path, "r") as f:
@@ -63,30 +65,28 @@ def test_get_data_commitment_maps_hardcoded(tmp_path):
 
 def test_integration_select_partial_columns(tmp_path, column_0, column_1, error, scales):
     data_path = tmp_path / "data.json"
-    data_json = data_to_json_file(data_path, [column_0, column_1])
-    columns = list(data_json.keys())
-    assert len(columns) == 2
-    # Select only the first column from two columns
-    selected_columns = [columns[0]]
+    data_json = {"columns_0": column_0, "columns_1": column_1}
+    data_shape = {"columns_0": len(column_0), "columns_1": len(column_1)}
+    data_to_json_file(data_path, data_json)
 
     def simple_computation(state, args):
-        x = args['columns_0']
-        return state.mean(x)
+        return state.mean(args["columns_0"])
+    precal_witness_path = tmp_path / "precal_witness_path.json"
+    selected_columns, _, model = computation_to_model(simple_computation, precal_witness_path, data_shape, True, error)
     # gen settings, setup, prove, verify
-    compute(tmp_path, [column_0, column_1], simple_computation, scales, selected_columns)
+    compute(tmp_path, data_json, model, scales, selected_columns)
 
 
 def test_csv_data(tmp_path, column_0, column_1, error, scales):
     data_json_path = tmp_path / "data.json"
     data_csv_path = tmp_path / "data.csv"
-    data_json = data_to_json_file(data_json_path, [column_0, column_1])
+    data_json = {"columns_0": column_0, "columns_1": column_1}
+    data_shape = {"columns_0": len(column_0), "columns_1": len(column_1)}
+    data_to_json_file(data_json_path, data_json)
     json_file_to_csv(data_json_path, data_csv_path)
 
-    selected_columns = list(data_json.keys())
-
     def simple_computation(state, args):
-        x = args['columns_0']
-        return state.mean(x)
+        return state.mean(args["columns_0"])
 
     sel_data_path = tmp_path / "comb_data.json"
     model_path = tmp_path / "model.onnx"
@@ -98,7 +98,7 @@ def test_csv_data(tmp_path, column_0, column_1, error, scales):
     generate_data_commitment(data_csv_path, scales, data_commitment_path)
 
     # Test: `prover_gen_settings` works with csv
-    _, model_for_proving = computation_to_model(simple_computation, precal_witness_path, True, selected_columns, error)
+    selected_columns, _, model_for_proving = computation_to_model(simple_computation, precal_witness_path, data_shape, True, error)
     prover_gen_settings(
         data_path=data_csv_path,
         selected_columns=selected_columns,
@@ -112,7 +112,7 @@ def test_csv_data(tmp_path, column_0, column_1, error, scales):
 
     # Test: `prover_gen_settings` works with csv
     # Instantiate the model for verification since the state of `model_for_proving` is changed after `prover_gen_settings`
-    _, model_for_verification = computation_to_model(simple_computation, precal_witness_path, False, selected_columns, error)
+    selected_columns, _, model_for_verification = computation_to_model(simple_computation, precal_witness_path, data_shape, False, error)
     verifier_define_calculation(data_csv_path, selected_columns, str(sel_data_path), model_for_verification, str(model_path))
 
 def json_file_to_csv(data_json_path, data_csv_path):
@@ -135,7 +135,8 @@ def json_file_to_csv(data_json_path, data_csv_path):
 
 def test__preprocess_data_file_to_json(tmp_path, column_0, column_1):
     data_json_path = tmp_path / "data.json"
-    data_from_json = data_to_json_file(data_json_path, [column_0, column_1])
+    data_json = {"columns_0": column_0, "columns_1": column_1}
+    data_from_json = data_to_json_file(data_json_path, data_json)
 
     # Test: csv can be converted to json
     # 1. Generate a csv file from json
