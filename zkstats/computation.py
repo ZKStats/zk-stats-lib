@@ -264,30 +264,81 @@ class IModel(nn.Module):
 
 
 # An computation function. Example:
-# def computation(state: State, x: list[torch.Tensor]):
-#     out_0 = state.median(x[0])
-#     out_1 = state.median(x[1])
+# def computation(state: State, args: dict[str, torch.Tensor]):
+#     out_0 = state.median(args["x"])
+#     out_1 = state.median(args["y"])
 #     return state.mean(torch.tensor([out_0, out_1]).reshape(1,-1,1))
-TComputation = Callable[[State, list[torch.Tensor]], torch.Tensor]
+TComputation = Callable[[State, dict[str, torch.Tensor]], torch.Tensor]
+
+
+import ast
+import inspect
+
+
+def analyze_computation(computation: TComputation):
+    source = inspect.getsource(computation)
+
+    # Check if it's a lambda function
+    if source.strip().startswith('lambda'):
+        raise ValueError("Lambda functions are not supported in analyze_computation. Please use a regular function definition instead.")
+
+    # Existing code for regular functions
+    # Correct indentation
+    lines = source.splitlines()
+    min_indent = min(len(line) - len(line.lstrip()) for line in lines if line.strip())
+    corrected_source = '\n'.join(line[min_indent:] for line in lines)
+
+    tree = ast.parse(corrected_source)
+    column_names = set()
+
+    class ComputationVisitor(ast.NodeVisitor):
+        def __init__(self):
+            self.valid_params = False
+
+        def visit_FunctionDef(self, node):
+            if len(node.args.args) == 2:
+                if node.args.args[0].arg == 'state' and node.args.args[1].arg == 'args':
+                    self.valid_params = True
+            self.generic_visit(node)
+
+        def visit_Subscript(self, node):
+            if isinstance(node.value, ast.Name) and node.value.id == 'args':
+                if isinstance(node.slice, ast.Constant):
+                    column_names.add(node.slice.value)
+            self.generic_visit(node)
+
+    visitor = ComputationVisitor()
+    visitor.visit(tree)
+
+    if not visitor.valid_params:
+        raise ValueError("The computation function must have two parameters named 'state' and 'args'")
+
+    return list(column_names)
+
 
 class Args:
     def __init__(
         self,
-        columns: list[str],
+        data_shape: dict[str, int],
         data: list[torch.Tensor],
     ):
-        if len(columns) != len(data):
-            raise ValueError("columns and data must have the same length")
+        column_names = list(data_shape.keys())[:len(data)]
         self.data_dict = {
             column_name: d
-            for column_name, d in zip(columns, data)
+            for column_name, d in zip(column_names, data)
         }
 
     def __getitem__(self, key: str) -> torch.Tensor:
         return self.data_dict[key]
 
 
-def computation_to_model(computation: TComputation, precal_witness_path: str, isProver:bool, selected_columns: list[str], error: float = DEFAULT_ERROR ) -> tuple[State, Type[IModel]]:
+def computation_to_model(
+    computation: TComputation,
+    precal_witness_path:str,
+    data_shape: dict[str, int],
+    isProver: bool,
+    error: float = DEFAULT_ERROR,
+) -> tuple[list[str], State, Type[IModel]]:
     """
     Create a torch model from a `computation` function defined by user
     :param computation: A function that takes a State and a list of torch.Tensor, and returns a torch.Tensor
@@ -295,6 +346,16 @@ def computation_to_model(computation: TComputation, precal_witness_path: str, is
     :return: A tuple of State and Model. The Model is a torch model that can be used for exporting to onnx.
     State is a container for intermediate results of computation, which can be useful when debugging.
     """
+
+    selected_columns_unordered = analyze_computation(computation)
+    # Preserve the order from data_shape
+    selected_columns = [col for col in data_shape.keys() if col in selected_columns_unordered]
+    assert len(selected_columns) == len(selected_columns_unordered), "Selected columns must match"
+
+    invalid_columns = set(selected_columns) - set(data_shape.keys())
+    if invalid_columns:
+        raise ValueError(f"Computation uses columns not present in data: {invalid_columns}")
+
     state = State(error)
 
     state.precal_witness_path = precal_witness_path
@@ -302,25 +363,17 @@ def computation_to_model(computation: TComputation, precal_witness_path: str, is
 
     class Model(IModel):
         def preprocess(self, x: list[torch.Tensor]) -> None:
-            """
-            Calculate the witnesses of the computation and store them in the state.
-            """
-            # In the preprocess step, the operations are calculated and the results are stored in the state.
-            # So we don't need to get the returned result
-            args = Args(selected_columns, x)
+            args = Args(data_shape, x)
             computation(state, args)
             state.set_ready_for_exporting_onnx()
 
         def forward(self, *x: list[torch.Tensor]) -> tuple[IsResultPrecise, torch.Tensor]:
-            """
-            Called by torch.onnx.export.
-            """
-            args = Args(selected_columns, x)
+            args = Args(data_shape, x)
             result = computation(state, args)
             is_computation_result_accurate = state.bools[0]()
             for op_precise_check in state.bools[1:]:
                 is_op_result_accurate = op_precise_check()
                 is_computation_result_accurate = torch.logical_and(is_computation_result_accurate, is_op_result_accurate)
             return is_computation_result_accurate, result
-    return state, Model
+    return selected_columns, state, Model
 

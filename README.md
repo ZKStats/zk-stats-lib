@@ -30,22 +30,9 @@ poetry install
 
 ### Define Your Computation
 
-User computation must be defined as **a function** using ZKStats operations and PyTorch functions. The function signature must be `Callable[[State, list[torch.Tensor]], torch.Tensor]`:
-
-```python
-import torch
-
-from zkstats.computation import State
-
-# User-defined computation
-def user_computation(s: State, data: list[torch.Tensor]) -> torch.Tensor:
-    # Define your computation here
-    ...
-
-```
-
+User computation must be defined as **a function** using ZKStats operations and PyTorch functions. The function signature must be `Callable[[State, Args], torch.Tensor]`:
 - first argument is a `State` object, which contains the statistical functions that ZKStats supports.
-- second argument is a list of PyTorch tensors, the input data. `data[0]` is the first column, `data[1]` is the second column, and so on.
+- second argument is a `Args` object, which is a dictionary of PyTorch tensors, the input data. `Args['column1']` is the first column, `Args['column2']` is the second column, and so on.
 
 For example, we have two columns of data and we want to compute the mean of the medians of the two columns:
 
@@ -116,9 +103,9 @@ Note here, that we can also just let prover generate model, and then send that m
 ```python
 from zkstats.core import computation_to_model
 # For prover: generate prover_model, and write to precal_witness file
-_, prover_model = computation_to_model(user_computation, precal_witness_path, True, selected_columns, error)
+selected_columns, _, prover_model = computation_to_model(user_computation, precal_witness_path, data_shape, True, error)
 # For verifier, generate verifier model (which is same as prover_model) by reading precal_witness file
-_, verifier_model = computation_to_model(user_computation, precal_witness_path, False, selected_columns, error)
+selected_columns, _, verifier_model = computation_to_model(user_computation, precal_witness_path, data_shape, False, error)
 ```
 
 #### Data Provider: generate settings

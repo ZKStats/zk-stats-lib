@@ -4,7 +4,7 @@ import torch
 
 import pytest
 
-from zkstats.computation import State, Args, computation_to_model
+from zkstats.computation import State, computation_to_model, analyze_computation, TComputation, Args
 from zkstats.ops import (
     Mean,
     Median,
@@ -25,9 +25,9 @@ from .helpers import assert_result, compute, ERROR_CIRCUIT_DEFAULT, ERROR_CIRCUI
 
 
 def nested_computation(state: State, args: Args):
-    x = args['columns_0']
-    y = args['columns_1']
-    z = args['columns_2']
+    x = args["x"]
+    y = args["y"]
+    z = args["z"]
     out_0 = state.median(x)
     out_1 = state.geometric_mean(y)
     out_2 = state.harmonic_mean(x)
@@ -63,8 +63,14 @@ def nested_computation(state: State, args: Args):
     [ERROR_CIRCUIT_DEFAULT],
 )
 def test_nested_computation(tmp_path, column_0: torch.Tensor, column_1: torch.Tensor, column_2: torch.Tensor, error, scales):
+    precal_witness_path = tmp_path / "precal_witness_path.json"
     x, y, z = column_0, column_1, column_2
-    state = compute(tmp_path, [x, y, z], nested_computation, scales)
+    data_shape = {"x": len(x), "y": len(y), "z": len(z)}
+    data = {"x": x, "y": y, "z": z}
+    selected_columns, state, model = computation_to_model(nested_computation, precal_witness_path, data_shape, True, error)
+    compute(tmp_path, data, model, scales, selected_columns)
+    # There are 11 ops in the computation
+
     assert state.current_op_index == 12
 
     ops = state.ops
@@ -152,10 +158,14 @@ def test_computation_with_where_1d(tmp_path, error, column_0, op_type: Callable[
     def condition(_x: torch.Tensor):
         return _x < 4
 
-    def where_and_op(state: State, args: Args):
-        x = args['columns_0']
+    column_name = "x"
+
+    def where_and_op(state, args):
+        x = args[column_name]
         return op_type(state, state.where(condition(x), x))
-    state = compute(tmp_path, [column], where_and_op, scales)
+    precal_witness_path = tmp_path / "precal_witness_path.json"
+    _, state, model = computation_to_model(where_and_op, precal_witness_path, {column_name: column.shape}, True, error)
+    compute(tmp_path, {column_name: column}, model, scales)
 
     res_op = state.ops[-1]
     filtered = column[condition(column)]
@@ -174,14 +184,18 @@ def test_computation_with_where_2d(tmp_path, error, column_0, column_1, op_type:
     def condition_0(_x: torch.Tensor):
         return _x > 4
 
-    def where_and_op(state: State, args: Args):
-        x = args['columns_0']
-        y = args['columns_1']
+    def where_and_op(state: State, args: list[torch.Tensor]):
+        x = args["x"]
+        y = args["y"]
         condition_x = condition_0(x)
         filtered_x = state.where(condition_x, x)
         filtered_y = state.where(condition_x, y)
         return op_type(state, filtered_x, filtered_y)
-    state = compute(tmp_path, [column_0, column_1], where_and_op, scales)
+    precal_witness_path = tmp_path / "precal_witness_path.json"
+    data_shape = {"x": len(column_0), "y": len(column_1)}
+    data = {"x": column_0, "y": column_1}
+    selected_columns, state, model = computation_to_model(where_and_op, precal_witness_path, data_shape, True ,error)
+    compute(tmp_path, data, model, scales, selected_columns)
 
     res_op = state.ops[-1]
     condition_x = condition_0(column_0)
@@ -189,3 +203,68 @@ def test_computation_with_where_2d(tmp_path, error, column_0, column_1, op_type:
     filtered_y = column_1[condition_x]
     expected_res = expected_func(filtered_x.tolist(), filtered_y.tolist())
     assert_result(res_op.result.data, expected_res)
+
+
+def test_analyze_computation_success():
+    def valid_computation(state, args):
+        x = args["column1"]
+        y = args["column2"]
+        return state.mean(x) + state.median(y)
+
+    result = analyze_computation(valid_computation)
+    assert set(result) == {"column1", "column2"}
+
+def test_analyze_computation_no_columns():
+    def no_columns_computation(state, args):
+        return state.mean(state.median([1, 2, 3]))
+
+    result = analyze_computation(no_columns_computation)
+    assert result == []
+
+def test_analyze_computation_multiple_uses():
+    def multiple_uses_computation(state, args):
+        x = args["column1"]
+        y = args["column2"]
+        z = args["column1"]  # Using column1 twice
+        return state.mean(x) + state.median(y) + state.sum(z)
+
+    result = analyze_computation(multiple_uses_computation)
+    assert set(result) == {"column1", "column2"}
+
+def test_analyze_computation_nested_args():
+    def nested_args_computation(state, args):
+        x = args["column1"]["nested"]
+        y = args["column2"]
+        return state.mean(x) + state.median(y)
+
+    result = analyze_computation(nested_args_computation)
+    assert set(result) == {"column1", "column2"}
+
+def test_analyze_computation_invalid_params():
+    def invalid_params_computation(invalid1, invalid2):
+        return invalid1.mean(invalid2["column"])
+
+    with pytest.raises(ValueError, match="The computation function must have two parameters named 'state' and 'args'"):
+        analyze_computation(invalid_params_computation)
+
+def test_analyze_computation_wrong_param_names():
+    def wrong_param_names(state, wrong_name):
+        return state.mean(wrong_name["column"])
+
+    with pytest.raises(ValueError, match="The computation function must have two parameters named 'state' and 'args'"):
+        analyze_computation(wrong_param_names)
+
+def test_analyze_computation_dynamic_column_access():
+    def dynamic_column_access(state, args):
+        columns = ["column1", "column2"]
+        return sum(state.mean(args[col]) for col in columns)
+
+    # This won't catch dynamically accessed columns
+    result = analyze_computation(dynamic_column_access)
+    assert result == []
+
+def test_analyze_computation_lambda():
+    lambda_computation = lambda state, args: state.mean(args["column"])
+
+    with pytest.raises(ValueError, match="Lambda functions are not supported in analyze_computation"):
+        analyze_computation(lambda_computation)
