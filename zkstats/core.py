@@ -265,8 +265,8 @@ def verifier_verify(proof_path: str, settings_path: str, vk_path: str, selected_
   is_in_error = ezkl.felt_to_float(outputs[0], output_scales[0])
   assert is_in_error == 1.0, f"result is not within error"
   result_arr = []
-  for index in range(len(outputs)-1):
-    result_arr.append(ezkl.felt_to_float(outputs[index+1], output_scales[1]))
+  for index in range(1, len(outputs)):
+    result_arr.append(ezkl.felt_to_float(outputs[index], output_scales[index]))
   return result_arr
 
 
