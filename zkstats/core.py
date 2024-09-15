@@ -38,26 +38,21 @@ def verifier_define_calculation(
   _export_onnx(verifier_model, dummy_data_tensor_array, verifier_model_path)
 
 
-# TODO: Should only need the shape of data instead of the real dataset, since
-# users (verifiers) call this function and they don't have the real data.
-def create_dummy(data_path: str, dummy_data_path: str) -> None:
+def create_dummy(shape_info: dict[str, int], dummy_data_path: str) -> None:
     """
-    Create a dummy data file with randomized data based on the shape of the original data.
+    Create a dummy data file with randomized data based on the provided shape information.
+
+    Parameters:
+    - shape_info (dict): A dictionary where keys are column names and values are the number of elements (shape).
+    - dummy_data_path (str): The path to save the dummy data file.
     """
-    # Convert data file to json under the same directory but with suffix .json
-    data_path: Path = Path(data_path)
-    data_json_path = Path(data_path).with_suffix(DataExtension.JSON.value)
+    dummy_data = {}
+    for col, length in shape_info.items():
+        # Generate random data for each column
+        dummy_data[col] = np.round(np.random.uniform(0, 100, length), 1).tolist()
 
-    data = json.loads(open(data_json_path, "r").read())
-    # assume all columns have same number of rows
-    dummy_data ={}
-    for col in data:
-        # not use same value for every column to prevent something weird, like singular matrix
-        min_col = min(data[col])
-        max_col = max(data[col])
-        dummy_data[col] = np.round(np.random.uniform(min_col,max_col,len(data[col])),1).tolist()
-
-    json.dump(dummy_data, open(dummy_data_path, 'w'))
+    with open(dummy_data_path, 'w') as f:
+        json.dump(dummy_data, f)
 
 # ===================================================================================================
 # ===================================================================================================

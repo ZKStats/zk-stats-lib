@@ -4,8 +4,8 @@ from pathlib import Path
 
 import torch
 
-from zkstats.core import prover_gen_settings, setup, prover_gen_proof, verifier_verify, generate_data_commitment, verifier_define_calculation
-from zkstats.computation import computation_to_model, TComputation, State, IModel
+from zkstats.core import prover_gen_settings, setup, prover_gen_proof, verifier_verify, generate_data_commitment
+from zkstats.computation import IModel
 
 
 DEFAULT_POSSIBLE_SCALES = list(range(20))
